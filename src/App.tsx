@@ -27,11 +27,19 @@ function App() {
     selectCrop,
     soil,
     placeSoil,
-    selectedCategory
+    selectedCategory,
+    buildings,
+    buildingPreview,
+    setBuildingPreview,
+    placeBuilding,
+    selectedBuildItem
   } = useGameStore()
 
   // Add viewport offset state
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 })
+
+  // Add mouse position tracking
+  const [mouseGridPos, setMouseGridPos] = useState<{ x: number, y: number } | null>(null)
 
   useEffect(() => {
     console.log('loaded')
@@ -132,6 +140,27 @@ function App() {
     return true
   }
 
+  const handleGridClick = (x: number, y: number) => {
+    const posKey = `${x},${y}`
+    if (selectedBuildItem === 'barn') {
+      placeBuilding('barn', { x, y })
+    } else if (selectedBuildItem === 'soil') {
+      placeSoil(posKey)
+    }
+  }
+
+  const handleGridHover = (x: number, y: number) => {
+    setMouseGridPos({ x, y })
+    if (selectedCategory === 'build' && selectedBuildItem === 'barn') {
+      setBuildingPreview('barn', { x, y })
+    }
+  }
+
+  const handleGridLeave = () => {
+    setMouseGridPos(null)
+    setBuildingPreview(null, null)
+  }
+
   return (
     <div className="game-container">
       <HUD playerPosition={playerPosition} />
@@ -142,13 +171,32 @@ function App() {
             transform: `translate(${viewportOffset.x}px, ${viewportOffset.y}px)`,
             transition: 'transform 0.2s ease-out'
           }}
+          onMouseLeave={handleGridLeave}
         >
           {Array.from({ length: GRID_SIZE }, (_, y) => (
             <div key={y} className="grid-row">
               {Array.from({ length: GRID_SIZE }, (_, x) => {
                 const posKey = `${x},${y}`
+                const isInPreview = (
+                  (selectedBuildItem === 'barn' && buildingPreview.type === 'barn' && 
+                    buildingPreview.position &&
+                    x >= buildingPreview.position.x && 
+                    x < buildingPreview.position.x + 3 &&
+                    y >= buildingPreview.position.y && 
+                    y < buildingPreview.position.y + 3) ||
+                  (selectedBuildItem === 'soil' && mouseGridPos?.x === x && mouseGridPos?.y === y)
+                )
+
                 return (
-                  <div key={`${x}-${y}`} className={`grid-cell ${soil.has(posKey) ? 'has-soil' : ''}`}>
+                  <div 
+                    key={`${x}-${y}`} 
+                    className={`grid-cell ${soil.has(posKey) ? 'has-soil' : ''} ${isInPreview ? 'building-preview' : ''}`}
+                    onMouseEnter={() => handleGridHover(x, y)}
+                    onClick={() => handleGridClick(x, y)}
+                  >
+                    {buildings[posKey] === 'barn' && (
+                      <div className="building barn">🏚️</div>
+                    )}
                     {crops[posKey] && (
                       <div className={`crop ${crops[posKey].stage}`}>
                         {getCropEmoji(crops[posKey])}

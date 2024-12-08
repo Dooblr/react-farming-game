@@ -165,3 +165,27 @@ html, body {
 .grid-cell.has-soil {
   background-color: #8B4513;
 }
+
+.building {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.2rem;
+  z-index: 1;
+}
+
+.barn {
+  font-size: 2rem;
+}
+
+.building-preview {
+  background-color: rgba(135, 206, 235, 0.5) !important;
+  cursor: pointer;
+
+  &.invalid {
+    background-color: rgba(255, 0, 0, 0.3) !important;
+  }
+}

@@ -29,7 +29,10 @@ export function HUD({ playerPosition }: HUDProps) {
     menuOpen,
     toggleMenu,
     selectedCategory,
-    setSelectedCategory
+    setSelectedCategory,
+    setBuildingPreview,
+    selectedBuildItem,
+    selectBuildItem
   } = useGameStore()
 
   return (
@@ -91,8 +94,8 @@ export function HUD({ playerPosition }: HUDProps) {
                 {Object.entries(BUILDABLE_ITEMS).map(([id, item]) => (
                   <button
                     key={id}
-                    className="item-button"
-                    onClick={() => {/* Handle building */}}
+                    className={`item-button ${selectedBuildItem === id ? 'selected' : ''}`}
+                    onClick={() => selectBuildItem(id as 'soil' | 'barn')}
                   >
                     <div className="item-emoji">{item.emoji}</div>
                     <div className="item-info">

@@ -21,6 +21,15 @@ interface GameState {
   toggleMenu: () => void
   setSelectedCategory: (category: 'plant' | 'build' | null) => void
   placeSoil: (position: string) => void
+  buildings: Record<string, 'barn'>
+  buildingPreview: {
+    type: 'barn' | null
+    position: { x: number, y: number } | null
+  }
+  setBuildingPreview: (type: 'barn' | null, position: { x: number, y: number } | null) => void
+  placeBuilding: (type: 'barn', position: { x: number, y: number }) => void
+  selectedBuildItem: 'soil' | 'barn' | null
+  selectBuildItem: (item: 'soil' | 'barn' | null) => void
 }
 
 let store = create<GameState>((set) => ({
@@ -30,6 +39,12 @@ let store = create<GameState>((set) => ({
   menuOpen: false,
   selectedCategory: null,
   soil: new Set(),
+  buildings: {},
+  buildingPreview: {
+    type: null,
+    position: null
+  },
+  selectedBuildItem: null,
 
   selectCrop: (cropType) => set({ selectedCrop: cropType }),
 
@@ -81,7 +96,7 @@ let store = create<GameState>((set) => ({
   setSelectedCategory: (category) => set({ selectedCategory: category }),
 
   placeSoil: (position) => set((state) => {
-    if (state.money < 5) return state
+    if (state.selectedBuildItem !== 'soil' || state.money < 5) return state
     const newSoil = new Set(state.soil)
     newSoil.add(position)
     return {
@@ -89,6 +104,45 @@ let store = create<GameState>((set) => ({
       money: state.money - 5
     }
   }),
+
+  setBuildingPreview: (type, position) => set({
+    buildingPreview: { type, position }
+  }),
+
+  placeBuilding: (type, position) => set((state) => {
+    if (type === 'barn' && state.money < 100) return state
+
+    // Check 3x3 area is clear
+    for (let y = position.y; y < position.y + 3; y++) {
+      for (let x = position.x; x < position.x + 3; x++) {
+        const posKey = `${x},${y}`
+        if (state.buildings[posKey] || state.crops[posKey] || state.soil.has(posKey)) {
+          return state
+        }
+      }
+    }
+
+    const newBuildings = { ...state.buildings }
+    for (let y = position.y; y < position.y + 3; y++) {
+      for (let x = position.x; x < position.x + 3; x++) {
+        newBuildings[`${x},${y}`] = type
+      }
+    }
+
+    return {
+      buildings: newBuildings,
+      money: state.money - 100,
+      buildingPreview: { type: null, position: null },
+      selectedCategory: null,
+      menuOpen: false
+    }
+  }),
+
+  selectBuildItem: (item) => set((state) => ({
+    selectedBuildItem: item,
+    selectedCategory: 'build',
+    buildingPreview: item === 'barn' ? { type: 'barn', position: null } : { type: null, position: null }
+  }))
 }))
 
 if (import.meta.hot) {
