@@ -83,4 +83,132 @@
   font-size: 0.9rem;
   opacity: 0.8;
   text-align: center;
+}
+
+.menu-button {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  border: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 25px;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.9);
+    transform: scale(1.05);
+  }
+}
+
+.menu-tray {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  z-index: 90;
+  padding: 80px 20px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.menu-header {
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.money-display {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.category-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.category-button {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  &.selected {
+    background: rgba(255, 255, 255, 0.3);
+    outline: 2px solid white;
+  }
+}
+
+.menu-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.item-button {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+  text-align: left;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  &.selected {
+    background: rgba(255, 255, 255, 0.3);
+    outline: 2px solid white;
+  }
+}
+
+.item-emoji {
+  font-size: 1.5rem;
+  min-width: 40px;
+  text-align: center;
+}
+
+.item-info {
+  flex: 1;
+}
+
+.item-name {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.item-details {
+  font-size: 0.8rem;
+  opacity: 0.8;
 } 

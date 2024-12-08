@@ -24,7 +24,10 @@ function App() {
     plantSeed, 
     updateCrops, 
     harvestCrop,
-    selectCrop 
+    selectCrop,
+    soil,
+    placeSoil,
+    selectedCategory
   } = useGameStore()
 
   // Add viewport offset state
@@ -48,10 +51,14 @@ function App() {
       
       if (key === ' ') {
         const posKey = `${playerPosition.x},${playerPosition.y}`
-        if (!crops[posKey]) {
-          plantSeed(posKey)
-        } else if (crops[posKey].stage === 'ready') {
-          harvestCrop(posKey)
+        if (selectedCategory === 'build') {
+          placeSoil(posKey)
+        } else if (soil.has(posKey)) {
+          if (!crops[posKey]) {
+            plantSeed(posKey)
+          } else if (crops[posKey].stage === 'ready') {
+            harvestCrop(posKey)
+          }
         }
         return
       }
@@ -79,7 +86,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [crops, plantSeed, harvestCrop, playerPosition])
+  }, [crops, plantSeed, harvestCrop, playerPosition, selectedCategory])
 
   // Calculate viewport position to center on player
   useEffect(() => {
@@ -138,29 +145,32 @@ function App() {
         >
           {Array.from({ length: GRID_SIZE }, (_, y) => (
             <div key={y} className="grid-row">
-              {Array.from({ length: GRID_SIZE }, (_, x) => (
-                <div key={`${x}-${y}`} className="grid-cell">
-                  {crops[`${x},${y}`] && (
-                    <div className={`crop ${crops[`${x},${y}`].stage}`}>
-                      {getCropEmoji(crops[`${x},${y}`])}
-                    </div>
-                  )}
-                  {x === playerPosition.x && y === playerPosition.y && (
-                    <>
-                      <div className="player">🧑‍🌾</div>
-                      {canPlantHere(x, y) && (
-                        <div 
-                          className="planting-preview"
-                          style={{
-                            width: `${selectedCropData.size.width * 100}%`,
-                            height: `${selectedCropData.size.height * 100}%`
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
+              {Array.from({ length: GRID_SIZE }, (_, x) => {
+                const posKey = `${x},${y}`
+                return (
+                  <div key={`${x}-${y}`} className={`grid-cell ${soil.has(posKey) ? 'has-soil' : ''}`}>
+                    {crops[posKey] && (
+                      <div className={`crop ${crops[posKey].stage}`}>
+                        {getCropEmoji(crops[posKey])}
+                      </div>
+                    )}
+                    {x === playerPosition.x && y === playerPosition.y && (
+                      <>
+                        <div className="player">🧑‍🌾</div>
+                        {canPlantHere(x, y) && (
+                          <div 
+                            className="planting-preview"
+                            style={{
+                              width: `${selectedCropData.size.width * 100}%`,
+                              height: `${selectedCropData.size.height * 100}%`
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ))}
         </div>

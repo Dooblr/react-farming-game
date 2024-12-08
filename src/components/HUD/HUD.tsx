@@ -1,60 +1,113 @@
 import { CropType, CROPS } from '../../types/crops'
 import { useGameStore } from '../../store/gameStore'
 import './HUD.scss'
-import { useEffect } from 'react';
 
 interface HUDProps {
   playerPosition: { x: number; y: number }
 }
 
-export function HUD({ playerPosition }: HUDProps) {
-  const { money, selectedCrop, selectCrop } = useGameStore()
-  const selectedCropData = CROPS[selectedCrop]
-
-  // Calculate the cells that would be affected by planting
-  const affectedCells = []
-  for (let y = 0; y < selectedCropData.size.height; y++) {
-    for (let x = 0; x < selectedCropData.size.width; x++) {
-      affectedCells.push({
-        x: playerPosition.x + x,
-        y: playerPosition.y + y
-      })
-    }
+const BUILDABLE_ITEMS = {
+  soil: {
+    name: 'Soil',
+    emoji: '🟫',
+    price: 5,
+    description: 'Required for planting crops'
+  },
+  barn: {
+    name: 'Barn',
+    emoji: '🏚️',
+    price: 100,
+    description: 'Store your harvested crops'
   }
+}
+
+export function HUD({ playerPosition }: HUDProps) {
+  const { 
+    money, 
+    selectedCrop, 
+    selectCrop,
+    menuOpen,
+    toggleMenu,
+    selectedCategory,
+    setSelectedCategory
+  } = useGameStore()
 
   return (
-    <div className="hud">
-      <div className="hud-money">Money: ${money}</div>
-      <div className="crop-selector">
-        {(Object.keys(CROPS) as CropType[]).map((cropType) => {
-          const cropData = CROPS[cropType]
-          return (
-            <button
-              key={cropType}
-              className={`crop-button ${selectedCrop === cropType ? 'selected' : ''}`}
-              onClick={() => selectCrop(cropType)}
+    <>
+      <button 
+        className="menu-button"
+        onClick={toggleMenu}
+      >
+        {menuOpen ? '✕' : '☰'}
+      </button>
+
+      {menuOpen && (
+        <div className="menu-tray">
+          <div className="menu-header">
+            <div className="money-display">💰 ${money}</div>
+          </div>
+
+          <div className="category-buttons">
+            <button 
+              className={`category-button ${selectedCategory === 'plant' ? 'selected' : ''}`}
+              onClick={() => setSelectedCategory('plant')}
             >
-              <div className="crop-button-content">
-                <span className="crop-emoji">{cropData.readyEmoji}</span>
-                <div className="crop-info">
-                  <span className="crop-name">{cropData.name}</span>
-                  <span className="crop-details">
-                    ${cropData.sellPrice} • {cropData.growthTime.toSprout + cropData.growthTime.toMature}s
-                  </span>
-                </div>
-              </div>
-              {cropData.size.width > 1 || cropData.size.height > 1 ? (
-                <div className="crop-size">
-                  {cropData.size.width}x{cropData.size.height}
-                </div>
-              ) : null}
+              🌱 Plant
             </button>
-          )
-        })}
-      </div>
-      {/* <div className="planting-info">
-        Space to {selectedCropData.name.toLowerCase()}
-      </div> */}
-    </div>
+            <button 
+              className={`category-button ${selectedCategory === 'build' ? 'selected' : ''}`}
+              onClick={() => setSelectedCategory('build')}
+            >
+              🏗️ Build
+            </button>
+          </div>
+
+          <div className="menu-content">
+            {selectedCategory === 'plant' && (
+              <div className="crop-list">
+                {(Object.keys(CROPS) as CropType[]).map((cropType) => {
+                  const cropData = CROPS[cropType]
+                  return (
+                    <button
+                      key={cropType}
+                      className={`item-button ${selectedCrop === cropType ? 'selected' : ''}`}
+                      onClick={() => selectCrop(cropType)}
+                    >
+                      <div className="item-emoji">{cropData.readyEmoji}</div>
+                      <div className="item-info">
+                        <div className="item-name">{cropData.name}</div>
+                        <div className="item-details">
+                          Sells for ${cropData.sellPrice}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {selectedCategory === 'build' && (
+              <div className="build-list">
+                {Object.entries(BUILDABLE_ITEMS).map(([id, item]) => (
+                  <button
+                    key={id}
+                    className="item-button"
+                    onClick={() => {/* Handle building */}}
+                  >
+                    <div className="item-emoji">{item.emoji}</div>
+                    <div className="item-info">
+                      <div className="item-name">{item.name}</div>
+                      <div className="item-details">
+                        ${item.price} - {item.description}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 } 
