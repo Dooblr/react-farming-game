@@ -51,9 +51,9 @@ interface GameState {
   updateNPCs: () => void
   playerPosition: { x: number, y: number }
   setPlayerPosition: (position: { x: number, y: number } | ((prev: { x: number, y: number }) => { x: number, y: number })) => void
-  pet: Pet | null
+  pets: Pet[]
   spawnPet: (type: PetType, position: { x: number, y: number }) => void
-  updatePet: () => void
+  updatePets: () => void
   thieves: Thief[]
   spawnThief: () => void
   updateThieves: () => void
@@ -91,7 +91,7 @@ let store = create<GameState>((set, get) => {
     },
     npcs: {},
     playerPosition: { x: GRID_CENTER, y: GRID_CENTER },
-    pet: null,
+    pets: [],
     thieves: [],
     fences: new Set(),
     animals: [],
@@ -349,63 +349,63 @@ let store = create<GameState>((set, get) => {
     }),
 
     spawnPet: (type, position) => set((state) => {
-      if (state.pet || state.money < PET_DATA[type].price) return state
+      if (state.money < PET_DATA[type].price) return state
       
       return {
-        pet: { 
+        pets: [...state.pets, { 
           type, 
           position: { ...position }
-        },
+        }],
         money: state.money - PET_DATA[type].price
       }
     }),
 
-    updatePet: () => set((state) => {
-      if (!state.pet) return state
-
+    updatePets: () => set((state) => {
       // Only move every second
       if (Math.random() > 1/60) return state
 
-      // Look for nearest thief
-      const nearestThief = state.thieves.reduce((nearest, thief) => {
-        const dist = Math.hypot(
-          thief.position.x - state.pet!.position.x,
-          thief.position.y - state.pet!.position.y
-        )
-        return !nearest || dist < nearest.dist ? { thief, dist } : nearest
-      }, null as { thief: Thief, dist: number } | null)
+      const updatedPets = state.pets.map(pet => {
+        // Look for nearest thief
+        const nearestThief = state.thieves.reduce((nearest, thief) => {
+          const dist = Math.hypot(
+            thief.position.x - pet.position.x,
+            thief.position.y - pet.position.y
+          )
+          return !nearest || dist < nearest.dist ? { thief, dist } : nearest
+        }, null as { thief: Thief, dist: number } | null)
 
-      // If there's a thief nearby, move one step towards it
-      if (nearestThief) {
-        // Choose either horizontal or vertical movement randomly
-        const moveHorizontally = Math.random() < 0.5
-        const dx = Math.sign(nearestThief.thief.position.x - state.pet.position.x)
-        const dy = Math.sign(nearestThief.thief.position.y - state.pet.position.y)
+        // If there's a thief nearby, move towards it
+        if (nearestThief) {
+          const moveHorizontally = Math.random() < 0.5
+          const dx = Math.sign(nearestThief.thief.position.x - pet.position.x)
+          const dy = Math.sign(nearestThief.thief.position.y - pet.position.y)
 
-        if (moveHorizontally && dx !== 0) {
-          return {
-            pet: {
-              ...state.pet,
+          // Apply pet-specific speed
+          const speed = PET_DATA[pet.type].speed
+
+          if (moveHorizontally && dx !== 0) {
+            return {
+              ...pet,
               position: {
-                ...state.pet.position,
-                x: state.pet.position.x + dx
+                ...pet.position,
+                x: pet.position.x + (dx * speed)
               }
             }
-          }
-        } else if (!moveHorizontally && dy !== 0) {
-          return {
-            pet: {
-              ...state.pet,
+          } else if (!moveHorizontally && dy !== 0) {
+            return {
+              ...pet,
               position: {
-                ...state.pet.position,
-                y: state.pet.position.y + dy
+                ...pet.position,
+                y: pet.position.y + (dy * speed)
               }
             }
           }
         }
-      }
 
-      return { pet: state.pet }
+        return pet
+      })
+
+      return { pets: updatedPets }
     }),
 
     spawnThief: () => set((state) => {
@@ -451,16 +451,18 @@ let store = create<GameState>((set, get) => {
         })
 
       const updatedThieves = state.thieves.map(thief => {
-        // Check if dog is nearby
-        const isDogNearby = state.pet && Math.hypot(
-          state.pet.position.x - thief.position.x,
-          state.pet.position.y - thief.position.y
-        ) < 4
+        // Check if any dog is nearby
+        const isDogNearby = state.pets.some(pet => 
+          Math.hypot(
+            pet.position.x - thief.position.x,
+            pet.position.y - thief.position.y
+          ) < 4
+        )
 
         if (isDogNearby) {
           // Run away from dog one square at a time
-          const dx = Math.sign(thief.position.x - state.pet!.position.x)
-          const dy = Math.sign(thief.position.y - state.pet!.position.y)
+          const dx = Math.sign(thief.position.x - state.pets[0].position.x)
+          const dy = Math.sign(thief.position.y - state.pets[0].position.y)
           
           // Choose either horizontal or vertical movement randomly
           const moveHorizontally = Math.random() < 0.5
@@ -551,15 +553,52 @@ let store = create<GameState>((set, get) => {
 
     placeFence: (position) => set((state) => {
       if (state.money < 2) return state
-      const newFences = new Set(state.fences)
+      
+      // Only place fence if there's a valid preview and no existing fence on that side
       if (state.fencePreview.position && state.fencePreview.side) {
-        newFences.add(`${position},${state.fencePreview.side}`)
+        const fenceKey = `${position},${state.fencePreview.side}`
+        
+        // Check if there's already a fence on this side
+        const hasExistingFence = Array.from(state.fences).some(fence => {
+          const [fx, fy, side] = fence.split(',')
+          return fx === position.split(',')[0] && 
+                 fy === position.split(',')[1] && 
+                 side === state.fencePreview.side
+        })
+
+        if (hasExistingFence) return state
+
+        // Also check adjacent cell to prevent double fences
+        const [x, y] = position.split(',').map(Number)
+        let adjacentPosition: string
+        switch (state.fencePreview.side) {
+          case 'top':
+            adjacentPosition = `${x},${y-1},bottom`
+            break
+          case 'right':
+            adjacentPosition = `${x+1},${y},left`
+            break
+          case 'bottom':
+            adjacentPosition = `${x},${y+1},top`
+            break
+          case 'left':
+            adjacentPosition = `${x-1},${y},right`
+            break
+        }
+
+        if (state.fences.has(adjacentPosition)) return state
+
+        const newFences = new Set(state.fences)
+        newFences.add(fenceKey)
+
+        return {
+          fences: newFences,
+          money: state.money - 2,
+          fencePreview: { position: null, side: null }
+        }
       }
-      return {
-        fences: newFences,
-        money: state.money - 2,
-        fencePreview: { position: null, side: null }
-      }
+
+      return state
     }),
 
     placeAnimal: (type, position) => set((state) => {

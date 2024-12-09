@@ -27,6 +27,12 @@ const BUILDABLE_ITEMS = {
     price: 50,
     description: 'Protects your crops from thieves'
   },
+  fast_dog: {
+    name: 'Fast Dog',
+    emoji: '🐕‍🦺',
+    price: 100,
+    description: 'Protects crops, moves twice as fast'
+  },
   planter: {
     name: 'Auto Planter',
     emoji: '🚜',

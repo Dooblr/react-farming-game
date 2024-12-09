@@ -1,4 +1,4 @@
-export type PetType = 'dog'
+export type PetType = 'dog' | 'fast_dog'
 
 export interface Pet {
   type: PetType
@@ -8,6 +8,13 @@ export interface Pet {
 export const PET_DATA = {
   dog: {
     emoji: '🐕',
-    price: 50
+    price: 50,
+    speed: 1
+  },
+  fast_dog: {
+    emoji: '🐕‍🦺',
+    price: 100,
+    speed: 2,
+    description: 'Moves twice as fast'
   }
 } 

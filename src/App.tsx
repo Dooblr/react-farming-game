@@ -6,6 +6,7 @@ import { HUD } from "./components/HUD/HUD";
 import { NPC_DATA } from "./types/npcs";
 import { GRID_SIZE, GRID_CENTER } from "./constants";
 import { PET_DATA } from "./types/pets";
+import { AnimalType, ANIMAL_DATA } from './types/animals';
 
 interface Position {
   x: number;
@@ -36,9 +37,9 @@ function App() {
     updateNPCs,
     playerPosition,
     setPlayerPosition,
-    pet,
+    pets,
     spawnPet,
-    updatePet,
+    updatePets,
     setSelectedCategory,
     selectBuildItem,
     menuOpen,
@@ -49,7 +50,10 @@ function App() {
     fencePreview,
     setFencePreview,
     fences,
-    placeFence
+    placeFence,
+    selectedAnimal,
+    animals,
+    placeAnimal
   } = useGameStore();
 
   // Add viewport offset state
@@ -70,6 +74,9 @@ function App() {
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(
     null
   );
+
+  // Add a state for preview class
+  const [previewClass, setPreviewClass] = useState('');
 
   useEffect(() => {
     console.log("loaded");
@@ -260,23 +267,33 @@ function App() {
       const mouseX = e.clientX - cellRect.left;
       const mouseY = e.clientY - cellRect.top;
       
-      // Determine which side of the cell the mouse is closest to
-      const distToLeft = mouseX;
-      const distToRight = cellRect.width - mouseX;
-      const distToTop = mouseY;
-      const distToBottom = cellRect.height - mouseY;
+      // Determine primary axis first
+      const isVerticalPrimary = Math.abs(mouseX - cellRect.width/2) < Math.abs(mouseY - cellRect.height/2);
       
-      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
       let side: 'top' | 'right' | 'bottom' | 'left' | null = null;
       
-      if (minDist === distToLeft) side = 'left';
-      else if (minDist === distToRight) side = 'right';
-      else if (minDist === distToTop) side = 'top';
-      else if (minDist === distToBottom) side = 'bottom';
+      if (!isVerticalPrimary) {
+        // Horizontal axis selection (top/bottom)
+        side = mouseY < cellRect.height/2 ? 'top' : 'bottom';
+      } else {
+        // Vertical axis selection (left/right)
+        side = mouseX < cellRect.width/2 ? 'left' : 'right';
+      }
       
-      setFencePreview(`${x},${y}`, side);
+      // Only update if the side has changed
+      if (fencePreview.position !== `${x},${y}` || fencePreview.side !== side) {
+        setFencePreview(`${x},${y}`, side);
+      }
+    } else if (selectedAnimal) {
+      // Check if position is within a valid enclosure
+      const enclosure = findEnclosure({ x, y }, fences);
+      const animalData = ANIMAL_DATA[selectedAnimal];
+      const isValidPlacement = enclosure && enclosure.size >= animalData.requiredSpace;
+      
+      // Update preview class based on validity
+      setPreviewClass(isValidPlacement ? 'animal-preview valid' : 'animal-preview invalid');
     } else {
-      setFencePreview(null, null);
+      setPreviewClass('');
     }
   };
 
@@ -347,10 +364,10 @@ function App() {
   // Add update interval for pet movement
   useEffect(() => {
     const interval = setInterval(() => {
-      updatePet()
+      updatePets()
     }, 1000/60) // 60 FPS for smooth movement
     return () => clearInterval(interval)
-  }, [updatePet])
+  }, [updatePets])
 
   // Add NPC update interval
   useEffect(() => {
@@ -536,10 +553,12 @@ function App() {
                         </div>
                       ) : null
                     )}
-                    {pet && pet.position.x === x && pet.position.y === y && (
-                      <div className={`pet ${pet.type}`}>
-                        {PET_DATA[pet.type].emoji}
-                      </div>
+                    {pets.map(pet => 
+                      pet.position.x === x && pet.position.y === y && (
+                        <div key={pet.id} className={`pet ${pet.type}`}>
+                          {PET_DATA[pet.type].emoji}
+                        </div>
+                      )
                     )}
                     {/* Add thieves */}
                     {thieves.map(thief => 
@@ -556,6 +575,14 @@ function App() {
                       }
                       return null;
                     })}
+                    
+                    {/* Add animal preview */}
+                    {selectedAnimal && mouseGridPos?.x === x && mouseGridPos?.y === y && (
+                      <div 
+                        className={previewClass}
+                        data-emoji={ANIMAL_DATA[selectedAnimal].emoji}
+                      />
+                    )}
                     
                     {/* Add fence preview */}
                     {fencePreview.position === posKey && fencePreview.side && (
