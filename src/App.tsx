@@ -41,7 +41,11 @@ function App() {
     updatePet,
     thieves,
     spawnThief,
-    updateThieves
+    updateThieves,
+    setSelectedCategory,
+    selectBuildItem,
+    menuOpen,
+    toggleMenu
   } = useGameStore();
 
   // Add viewport offset state
@@ -80,6 +84,7 @@ function App() {
       const key = e.key.toLowerCase();
 
       if (key === "escape") {
+        // Handle all escape actions in priority order
         if (isDragging) {
           setIsDragging(false);
           setDragStart(null);
@@ -87,6 +92,17 @@ function App() {
         }
         if (showMerchantMenu) {
           setShowMerchantMenu(false);
+          return;
+        }
+        if (selectedCategory || selectedBuildItem || selectedCrop !== 'wheat') {
+          // Clear all selections
+          setSelectedCategory(null);
+          selectBuildItem(null);
+          selectCrop('wheat');
+          return;
+        }
+        if (menuOpen) {
+          toggleMenu();
           return;
         }
       }
@@ -152,10 +168,16 @@ function App() {
     playerPosition,
     selectedCategory,
     selectedBuildItem,
+    selectedCrop,
     money,
     setPlayerPosition,
     isDragging,
-    showMerchantMenu
+    showMerchantMenu,
+    setSelectedCategory,
+    selectBuildItem,
+    selectCrop,
+    menuOpen,
+    toggleMenu
   ]);
 
   // Calculate viewport position to center on player
@@ -488,7 +510,7 @@ function App() {
                     onMouseEnter={() => handleGridHover(x, y)}
                     onMouseDown={() => handleGridClick(x, y)}
                   >
-                    {isBarnOrigin && <div className="building barn">🏚️</div>}
+                    {isBarnOrigin && <div className="building barn">��️</div>}
                     {crops[posKey] && (
                       <div className={`crop ${crops[posKey].stage}`}>
                         {getCropEmoji(crops[posKey])}
