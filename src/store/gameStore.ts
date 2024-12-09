@@ -364,32 +364,43 @@ let store = create<GameState>((set, get) => {
     updatePet: () => set((state) => {
       if (!state.pet) return state
 
-      // Only move every second (assuming 60 FPS)
+      // Only move every second
       if (Math.random() > 1/60) return state
 
-      const pet = { ...state.pet }
-      
-      // Pick a random direction: up, right, down, or left
-      const directions = [
-        { x: 0, y: -1 }, // up
-        { x: 1, y: 0 },  // right
-        { x: 0, y: 1 },  // down
-        { x: -1, y: 0 }  // left
-      ]
-      const direction = directions[Math.floor(Math.random() * directions.length)]
-      
-      // Calculate new position
-      const newX = Math.max(0, Math.min(GRID_SIZE - 1, pet.position.x + direction.x))
-      const newY = Math.max(0, Math.min(GRID_SIZE - 1, pet.position.y + direction.y))
-      
-      pet.position = { x: newX, y: newY }
-      return { pet }
+      // Look for nearest thief
+      const nearestThief = state.thieves.reduce((nearest, thief) => {
+        const dist = Math.hypot(
+          thief.position.x - state.pet!.position.x,
+          thief.position.y - state.pet!.position.y
+        )
+        return !nearest || dist < nearest.dist ? { thief, dist } : nearest
+      }, null as { thief: Thief, dist: number } | null)
+
+      if (nearestThief) {
+        // Move one square towards thief
+        const dx = Math.sign(nearestThief.thief.position.x - state.pet.position.x)
+        const dy = Math.sign(nearestThief.thief.position.y - state.pet.position.y)
+        
+        // Only move in one direction at a time (prevents diagonal movement)
+        const moveX = Math.random() < 0.5
+        return {
+          pet: {
+            ...state.pet,
+            position: {
+              x: Math.max(0, Math.min(GRID_SIZE - 1, state.pet.position.x + (moveX ? dx : 0))),
+              y: Math.max(0, Math.min(GRID_SIZE - 1, state.pet.position.y + (moveX ? 0 : dy)))
+            }
+          }
+        }
+      }
+
+      return state
     }),
 
     spawnThief: () => set((state) => {
-      // Only spawn if there are ready crops
+      // Only spawn if there are ready crops and less than 2 thieves
       const hasReadyCrops = Object.values(state.crops).some(crop => crop.stage === 'ready')
-      if (!hasReadyCrops) return state
+      if (!hasReadyCrops || state.thieves.length >= 2) return state
 
       // Pick a random edge position
       const side = Math.floor(Math.random() * 4)
@@ -427,88 +438,93 @@ let store = create<GameState>((set, get) => {
         })
 
       const updatedThieves = state.thieves.map(thief => {
-        // If stealing, count down timer
-        if (thief.stealTimer !== null) {
-          if (thief.stealTimer > 0) {
-            return { ...thief, stealTimer: thief.stealTimer - 1 }
-          }
-          // Timer finished, steal crop and retreat
-          const cropKey = `${thief.position.x},${thief.position.y}`
-          if (state.crops[cropKey]?.stage === 'ready') {
-            const { [cropKey]: removedCrop, ...remainingCrops } = state.crops
-            state.crops = remainingCrops
-          }
-          // Find nearest edge to retreat
-          const edgeX = thief.position.x < GRID_SIZE / 2 ? -1 : GRID_SIZE
-          const edgeY = thief.position.y < GRID_SIZE / 2 ? -1 : GRID_SIZE
-          return {
-            ...thief,
-            stealTimer: null,
-            targetPosition: { x: edgeX, y: edgeY }
-          }
-        }
+        // Check if dog is nearby
+        const isDogNearby = state.pet && Math.hypot(
+          state.pet.position.x - thief.position.x,
+          state.pet.position.y - thief.position.y
+        ) < 3
 
-        // If no target and there are crops, find nearest crop
-        if (!thief.targetPosition && readyCrops.length > 0) {
-          const nearestCrop = readyCrops.reduce((nearest, current) => {
-            const currentDist = Math.hypot(
-              current.position.x - thief.position.x,
-              current.position.y - thief.position.y
-            )
-            const nearestDist = nearest ? Math.hypot(
-              nearest.position.x - thief.position.x,
-              nearest.position.y - thief.position.y
-            ) : Infinity
-            return currentDist < nearestDist ? current : nearest
-          })
-          return { ...thief, targetPosition: nearestCrop.position }
-        }
-
-        // If no crops or already retreating, keep moving to target
-        if (thief.targetPosition) {
-          const dx = Math.sign(thief.targetPosition.x - thief.position.x)
-          const dy = Math.sign(thief.targetPosition.y - thief.position.y)
+        if (isDogNearby) {
+          // Run directly away from dog
+          const dx = Math.sign(thief.position.x - state.pet!.position.x)
+          const dy = Math.sign(thief.position.y - state.pet!.position.y)
+          
+          // Move one square away
           const newPosition = {
             x: thief.position.x + dx,
             y: thief.position.y + dy
           }
 
-          // If reached target crop, start stealing
-          if (readyCrops.some(crop => 
-            crop.position.x === newPosition.x && 
-            crop.position.y === newPosition.y
-          )) {
-            return {
-              ...thief,
-              position: newPosition,
-              stealTimer: 5 // 5 second steal timer
-            }
-          }
-
-          // If reached edge while retreating, remove thief
+          // If reached edge, remove thief
           if (
-            newPosition.x < 0 || 
-            newPosition.y < 0 || 
-            newPosition.x >= GRID_SIZE || 
-            newPosition.y >= GRID_SIZE
+            newPosition.x < 0 || newPosition.x >= GRID_SIZE ||
+            newPosition.y < 0 || newPosition.y >= GRID_SIZE
           ) {
             return null
           }
 
           return {
             ...thief,
-            position: newPosition
+            position: newPosition,
+            stealTimer: null,
+            targetPosition: null
           }
         }
 
-        // No target and no crops, retreat to nearest edge
-        const edgeX = thief.position.x < GRID_SIZE / 2 ? -1 : GRID_SIZE
-        const edgeY = thief.position.y < GRID_SIZE / 2 ? -1 : GRID_SIZE
-        return {
-          ...thief,
-          targetPosition: { x: edgeX, y: edgeY }
+        // If not stealing, find nearest crop
+        if (thief.stealTimer === null && readyCrops.length > 0) {
+          const nearestCrop = readyCrops.reduce((nearest, current) => {
+            const dist = Math.hypot(
+              current.position.x - thief.position.x,
+              current.position.y - thief.position.y
+            )
+            return !nearest || dist < nearest.dist ? { crop: current, dist } : nearest
+          }, null as { crop: typeof readyCrops[0], dist: number } | null)
+
+          if (nearestCrop) {
+            const dx = Math.sign(nearestCrop.crop.position.x - thief.position.x)
+            const dy = Math.sign(nearestCrop.crop.position.y - thief.position.y)
+            const newPosition = {
+              x: thief.position.x + dx,
+              y: thief.position.y + dy
+            }
+
+            // If reached crop, start stealing
+            if (
+              newPosition.x === nearestCrop.crop.position.x &&
+              newPosition.y === nearestCrop.crop.position.y
+            ) {
+              return {
+                ...thief,
+                position: newPosition,
+                stealTimer: 5
+              }
+            }
+
+            return {
+              ...thief,
+              position: newPosition
+            }
+          }
         }
-      }).filter(Boolean)
+
+        // If stealing, count down timer
+        if (thief.stealTimer !== null) {
+          if (thief.stealTimer > 0) {
+            return { ...thief, stealTimer: thief.stealTimer - 1 }
+          }
+
+          // Steal crop and look for another
+          const cropKey = `${thief.position.x},${thief.position.y}`
+          if (state.crops[cropKey]?.stage === 'ready') {
+            const { [cropKey]: removedCrop, ...remainingCrops } = state.crops
+            state.crops = remainingCrops
+          }
+          return { ...thief, stealTimer: null }
+        }
+
+        return thief
+      }).filter(Boolean) as Thief[]
 
       return { 
         thieves: updatedThieves,
