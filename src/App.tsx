@@ -39,13 +39,17 @@ function App() {
     pet,
     spawnPet,
     updatePet,
-    thieves,
-    spawnThief,
-    updateThieves,
     setSelectedCategory,
     selectBuildItem,
     menuOpen,
-    toggleMenu
+    toggleMenu,
+    spawnThief,
+    updateThieves,
+    thieves,
+    fencePreview,
+    setFencePreview,
+    fences,
+    placeFence
   } = useGameStore();
 
   // Add viewport offset state
@@ -241,16 +245,38 @@ function App() {
     } else if (selectedBuildItem === "dog" && money >= 50) {
       spawnPet('dog', { x, y });
     } else if (selectedBuildItem === "planter" && money >= 50 && soil.has(posKey)) {
-      // Only allow placement on soil
       spawnNPC('planter', { x, y });
       useGameStore.setState(state => ({ money: state.money - 50 }));
+    } else if (selectedBuildItem === "fence" && money >= 2) {
+      placeFence(posKey);
     }
   };
 
-  const handleGridHover = (x: number, y: number) => {
+  const handleGridHover = (x: number, y: number, e: React.MouseEvent) => {
     setMouseGridPos({ x, y });
-    if (selectedCategory === "build" && selectedBuildItem === "barn") {
-      setBuildingPreview("barn", { x, y });
+    
+    if (selectedBuildItem === 'fence') {
+      const cellRect = (e.target as HTMLElement).getBoundingClientRect();
+      const mouseX = e.clientX - cellRect.left;
+      const mouseY = e.clientY - cellRect.top;
+      
+      // Determine which side of the cell the mouse is closest to
+      const distToLeft = mouseX;
+      const distToRight = cellRect.width - mouseX;
+      const distToTop = mouseY;
+      const distToBottom = cellRect.height - mouseY;
+      
+      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+      let side: 'top' | 'right' | 'bottom' | 'left' | null = null;
+      
+      if (minDist === distToLeft) side = 'left';
+      else if (minDist === distToRight) side = 'right';
+      else if (minDist === distToTop) side = 'top';
+      else if (minDist === distToBottom) side = 'bottom';
+      
+      setFencePreview(`${x},${y}`, side);
+    } else {
+      setFencePreview(null, null);
     }
   };
 
@@ -258,45 +284,6 @@ function App() {
     setMouseGridPos(null);
     setBuildingPreview(null, null);
   };
-
-  // Modify the NPC update interval
-  useEffect(() => {
-    let spawnTimer = 0;
-    const interval = setInterval(() => {
-      spawnTimer++;
-
-      // Spawn thief every 10 seconds
-      if (spawnTimer >= 10) {
-        spawnTimer = 0;
-        // Spawn from random edge of map
-        const side = Math.floor(Math.random() * 4);
-        let position;
-        switch (side) {
-          case 0: // Top
-            position = { x: Math.floor(Math.random() * GRID_SIZE), y: 0 };
-            break;
-          case 1: // Right
-            position = {
-              x: GRID_SIZE - 1,
-              y: Math.floor(Math.random() * GRID_SIZE),
-            };
-            break;
-          case 2: // Bottom
-            position = {
-              x: Math.floor(Math.random() * GRID_SIZE),
-              y: GRID_SIZE - 1,
-            };
-            break;
-          default: // Left
-            position = { x: 0, y: Math.floor(Math.random() * GRID_SIZE) };
-        }
-        spawnNPC("thief", position);
-      }
-
-      updateNPCs();
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [spawnNPC, updateNPCs]);
 
   // Add mouse up handler
   const handleMouseUp = () => {
@@ -365,7 +352,15 @@ function App() {
     return () => clearInterval(interval)
   }, [updatePet])
 
-  // Add thief spawning and update interval
+  // Add NPC update interval
+  useEffect(() => {
+    const interval = setInterval(() => {
+      updateNPCs()
+    }, 1000) // Update every second
+    return () => clearInterval(interval)
+  }, [updateNPCs])
+
+  // Add thief spawning interval
   useEffect(() => {
     const interval = setInterval(() => {
       if (Math.random() < 0.1) { // 10% chance each second
@@ -507,10 +502,10 @@ function App() {
                     className={`grid-cell ${
                       soil.has(posKey) ? "has-soil" : ""
                     } ${previewClass}`}
-                    onMouseEnter={() => handleGridHover(x, y)}
+                    onMouseEnter={(e) => handleGridHover(x, y, e)}
                     onMouseDown={() => handleGridClick(x, y)}
                   >
-                    {isBarnOrigin && <div className="building barn">��️</div>}
+                    {isBarnOrigin && <div className="building barn">🐄</div>}
                     {crops[posKey] && (
                       <div className={`crop ${crops[posKey].stage}`}>
                         {getCropEmoji(crops[posKey])}
@@ -546,10 +541,25 @@ function App() {
                         {PET_DATA[pet.type].emoji}
                       </div>
                     )}
+                    {/* Add thieves */}
                     {thieves.map(thief => 
                       thief.position.x === x && thief.position.y === y ? (
                         <div key={thief.id} className="thief">👿</div>
                       ) : null
+                    )}
+                    
+                    {/* Add fence rendering */}
+                    {Array.from(fences).map(fence => {
+                      const [fx, fy, side] = fence.split(',');
+                      if (fx === x.toString() && fy === y.toString()) {
+                        return <div key={fence} className={`fence ${side}`} />;
+                      }
+                      return null;
+                    })}
+                    
+                    {/* Add fence preview */}
+                    {fencePreview.position === posKey && fencePreview.side && (
+                      <div className={`fence ${fencePreview.side} preview`} />
                     )}
                   </div>
                 );

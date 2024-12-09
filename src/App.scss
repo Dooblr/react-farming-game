@@ -353,6 +353,7 @@ html, body {
 
   &.thief {
     filter: brightness(0.8);
+    border:1px solid red;
   }
 
   &.dog {
@@ -383,4 +384,42 @@ html, body {
   font-size: 1.5rem;
   z-index: 2;
   filter: brightness(0.8);
+}
+
+.fence {
+  position: absolute;
+  background-color: #8B4513;
+  z-index: 2;
+
+  &.top {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+  }
+
+  &.right {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 4px;
+  }
+
+  &.bottom {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+  }
+
+  &.left {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 4px;
+  }
+
+  &.preview {
+    background-color: rgba(135, 206, 235, 0.8);
+  }
 }
