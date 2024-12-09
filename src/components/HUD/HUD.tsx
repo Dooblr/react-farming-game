@@ -25,6 +25,12 @@ const BUILDABLE_ITEMS = {
     emoji: '🐕',
     price: 50,
     description: 'Protects your crops from thieves'
+  },
+  planter: {
+    name: 'Auto Planter',
+    emoji: '🚜',
+    price: 50,
+    description: 'Automatically plants crops in empty soil'
   }
 }
 
@@ -164,7 +170,7 @@ export function HUD({ playerPosition }: HUDProps) {
                     <button
                       key={id}
                       className={`item-button ${selectedBuildItem === id ? 'selected' : ''}`}
-                      onClick={() => selectBuildItem(id as 'soil' | 'barn')}
+                      onClick={() => selectBuildItem(id as 'soil' | 'barn' | 'dog' | 'planter')}
                     >
                       <div className="item-emoji">{item.emoji}</div>
                       <div className="item-info">

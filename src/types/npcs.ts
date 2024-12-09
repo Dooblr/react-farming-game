@@ -1,4 +1,4 @@
-export type NPCType = 'thief' | 'dog'
+export type NPCType = 'thief' | 'dog' | 'planter'
 
 export interface NPC {
   id: string
@@ -7,6 +7,7 @@ export interface NPC {
   targetPosition: { x: number, y: number } | null
   stealTimer?: number
   patrolPoint?: { x: number, y: number }
+  plantTimer?: number
 }
 
 export const NPC_DATA = {
@@ -22,5 +23,11 @@ export const NPC_DATA = {
     range: 7,
     patrolRadius: 5,
     patrolSpeed: 0.25
+  },
+  planter: {
+    emoji: '🚜',
+    speed: 0.2,
+    plantDelay: 3,
+    harvestDelay: 2
   }
 } 

@@ -79,6 +79,18 @@ function App() {
     const handleKeyPress = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
 
+      if (key === "escape") {
+        if (isDragging) {
+          setIsDragging(false);
+          setDragStart(null);
+          return;
+        }
+        if (showMerchantMenu) {
+          setShowMerchantMenu(false);
+          return;
+        }
+      }
+
       if (key === " ") {
         const posKey = `${playerPosition.x},${playerPosition.y}`;
 
@@ -142,6 +154,8 @@ function App() {
     selectedBuildItem,
     money,
     setPlayerPosition,
+    isDragging,
+    showMerchantMenu
   ]);
 
   // Calculate viewport position to center on player
@@ -196,6 +210,7 @@ function App() {
   };
 
   const handleGridClick = (x: number, y: number) => {
+    const posKey = `${x},${y}`;
     if (selectedBuildItem === "soil") {
       setIsDragging(true);
       setDragStart({ x, y });
@@ -203,6 +218,10 @@ function App() {
       placeBuilding("barn", { x, y });
     } else if (selectedBuildItem === "dog" && money >= 50) {
       spawnPet('dog', { x, y });
+    } else if (selectedBuildItem === "planter" && money >= 50 && soil.has(posKey)) {
+      // Only allow placement on soil
+      spawnNPC('planter', { x, y });
+      useGameStore.setState(state => ({ money: state.money - 50 }));
     }
   };
 
@@ -444,6 +463,13 @@ function App() {
                       money >= 50
                         ? "building-preview"
                         : "building-preview-unaffordable";
+                  }
+                } else if (selectedBuildItem === "planter") {
+                  const isInPreview = x === mouseGridPos?.x && y === mouseGridPos?.y;
+                  if (isInPreview && soil.has(posKey)) { // Only show preview on soil
+                    previewClass = money >= 50
+                      ? "building-preview"
+                      : "building-preview-unaffordable";
                   }
                 }
 

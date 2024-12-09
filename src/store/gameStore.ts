@@ -40,8 +40,8 @@ interface GameState {
   }
   setBuildingPreview: (type: 'barn' | null, position: { x: number, y: number } | null) => void
   placeBuilding: (type: 'barn', position: { x: number, y: number }) => void
-  selectedBuildItem: 'soil' | 'barn' | 'dog' | null
-  selectBuildItem: (item: 'soil' | 'barn' | 'dog' | null) => void
+  selectedBuildItem: 'soil' | 'barn' | 'dog' | 'planter' | null
+  selectBuildItem: (item: 'soil' | 'barn' | 'dog' | 'planter' | null) => void
   inventory: Record<CropType, number>
   addToInventory: (cropType: CropType) => void
   sellInventory: () => void
@@ -253,95 +253,93 @@ let store = create<GameState>((set, get) => {
 
     updateNPCs: () => set((state) => {
       const newNPCs = { ...state.npcs }
-      const readyCrops: { position: { x: number, y: number }, key: string }[] = []
 
-      // Find ready crops
-      Object.entries(state.crops).forEach(([key, crop]) => {
-        if (crop.stage === 'ready') {
-          const [x, y] = key.split(',').map(Number)
-          readyCrops.push({ position: { x, y }, key })
-        }
-      })
+      // Find empty soil spots and ready crops
+      const emptySoilSpots = Array.from(state.soil).filter(pos => !state.crops[pos])
+      const readyCrops = Object.entries(state.crops)
+        .filter(([_, crop]) => crop.stage === 'ready')
+        .map(([key, _]) => key)
 
-      // Get player position from state
-      const playerPosition = get().playerPosition
-
-      // Update enemy manager with player position
-      enemyManager.update(readyCrops, playerPosition)
-
-      // Convert enemies to NPCs
-      const enemies = enemyManager.getEnemies()
-      const enemyNPCs = enemies.reduce((acc, enemy) => {
-        acc[enemy.id] = {
-          id: enemy.id,
-          type: 'thief',
-          position: enemy.position,
-          targetPosition: enemy.targetPosition,
-          stealTimer: enemy.stealTimer
-        }
-        return acc
-      }, {} as Record<string, NPC>)
-
-      // Update dogs
+      // Update planters
       Object.values(newNPCs).forEach(npc => {
-        if (npc.type === 'dog') {
-          // Find nearest thief within range
-          const nearestThief = Object.values(newNPCs)
-            .filter(other => other.type === 'thief')
-            .reduce((nearest, thief) => {
-              const dist = Math.hypot(
-                thief.position.x - npc.position.x,
-                thief.position.y - npc.position.y
-              )
-              if (dist <= NPC_DATA.dog.range && (!nearest || dist < nearest.dist)) {
-                return { thief, dist }
-              }
-              return nearest
-            }, null as { thief: NPC, dist: number } | null)
+        if (npc.type === 'planter') {
+          const currentPos = `${Math.round(npc.position.x)},${Math.round(npc.position.y)}`
 
-          if (nearestThief) {
-            // Chase thief
-            const dx = nearestThief.thief.position.x - npc.position.x
-            const dy = nearestThief.thief.position.y - npc.position.y
-            const dist = Math.hypot(dx, dy)
-            npc.position.x += (dx / dist) * NPC_DATA.dog.speed
-            npc.position.y += (dy / dist) * NPC_DATA.dog.speed
-          } else if (npc.patrolPoint) {
-            // No thieves nearby, patrol around spawn point
-            if (!npc.targetPosition) {
-              // Generate new random patrol point within radius
-              const angle = Math.random() * Math.PI * 2
-              const distance = Math.random() * NPC_DATA.dog.patrolRadius
-              npc.targetPosition = {
-                x: npc.patrolPoint.x + Math.cos(angle) * distance,
-                y: npc.patrolPoint.y + Math.sin(angle) * distance
+          // If on a ready crop, harvest it
+          if (readyCrops.includes(currentPos)) {
+            const crop = state.crops[currentPos]
+            if (crop && crop.stage === 'ready') {
+              // Add to inventory
+              state.inventory[crop.type] = (state.inventory[crop.type] || 0) + 1
+              // Remove crop
+              const { [currentPos]: _, ...remainingCrops } = state.crops
+              state.crops = remainingCrops
+            }
+          }
+          // If on empty soil and not currently planting, start planting
+          else if (emptySoilSpots.includes(currentPos) && !npc.plantTimer) {
+            npc.plantTimer = NPC_DATA.planter.plantDelay
+          }
+          // If planting, count down timer
+          else if (npc.plantTimer && npc.plantTimer > 0) {
+            npc.plantTimer--
+            if (npc.plantTimer === 0) {
+              // Plant a random crop
+              if (state.soil.has(currentPos) && !state.crops[currentPos]) {
+                const cropTypes = Object.keys(CROPS) as CropType[]
+                const randomCrop = cropTypes[Math.floor(Math.random() * cropTypes.length)]
+                state.crops[currentPos] = {
+                  type: randomCrop,
+                  stage: 'seed',
+                  timer: 0
+                }
+              }
+            }
+          }
+          // If not doing anything, find new target
+          else if (!npc.targetPosition) {
+            // Prioritize ready crops for harvesting
+            if (readyCrops.length > 0) {
+              const [x, y] = readyCrops[0].split(',').map(Number)
+              npc.targetPosition = { x, y }
+            }
+            // Otherwise look for empty soil
+            else if (emptySoilSpots.length > 0) {
+              const [x, y] = emptySoilSpots[0].split(',').map(Number)
+              npc.targetPosition = { x, y }
+            }
+          }
+
+          // Move towards target if we have one
+          if (npc.targetPosition) {
+            const dx = Math.sign(npc.targetPosition.x - npc.position.x)
+            const dy = Math.sign(npc.targetPosition.y - npc.position.y)
+            
+            // Move one square at a time
+            if (dx !== 0 || dy !== 0) {
+              const moveX = Math.random() < 0.5
+              if (moveX && dx !== 0) {
+                npc.position.x += dx
+              } else if (!moveX && dy !== 0) {
+                npc.position.y += dy
               }
             }
 
-            // Move towards patrol point
-            const dx = npc.targetPosition.x - npc.position.x
-            const dy = npc.targetPosition.y - npc.position.y
-            const dist = Math.hypot(dx, dy)
-
-            if (dist < 0.1) {
-              // Reached patrol point, clear target to get new one
+            // If reached target, clear it
+            if (
+              Math.abs(npc.position.x - npc.targetPosition.x) < 0.1 &&
+              Math.abs(npc.position.y - npc.targetPosition.y) < 0.1
+            ) {
               npc.targetPosition = null
-            } else {
-              // Move towards patrol point
-              npc.position.x += (dx / dist) * NPC_DATA.dog.patrolSpeed
-              npc.position.y += (dy / dist) * NPC_DATA.dog.patrolSpeed
             }
           }
         }
       })
 
       return {
-        npcs: {
-          ...enemyNPCs,
-          ...Object.fromEntries(
-            Object.entries(newNPCs).filter(([_, npc]) => npc.type === 'dog')
-          )
-        }
+        npcs: newNPCs,
+        crops: state.crops,
+        inventory: state.inventory
       }
     }),
 
@@ -356,7 +354,10 @@ let store = create<GameState>((set, get) => {
       if (state.pet || state.money < PET_DATA[type].price) return state
       
       return {
-        pet: { type, position },
+        pet: { 
+          type, 
+          position
+        },
         money: state.money - PET_DATA[type].price
       }
     }),
@@ -376,12 +377,12 @@ let store = create<GameState>((set, get) => {
         return !nearest || dist < nearest.dist ? { thief, dist } : nearest
       }, null as { thief: Thief, dist: number } | null)
 
-      if (nearestThief) {
-        // Move one square towards thief
+      // If there's a thief nearby, chase it
+      if (nearestThief && nearestThief.dist < 5) {
         const dx = Math.sign(nearestThief.thief.position.x - state.pet.position.x)
         const dy = Math.sign(nearestThief.thief.position.y - state.pet.position.y)
         
-        // Only move in one direction at a time (prevents diagonal movement)
+        // Only move in one direction at a time
         const moveX = Math.random() < 0.5
         return {
           pet: {
@@ -389,6 +390,58 @@ let store = create<GameState>((set, get) => {
             position: {
               x: Math.max(0, Math.min(GRID_SIZE - 1, state.pet.position.x + (moveX ? dx : 0))),
               y: Math.max(0, Math.min(GRID_SIZE - 1, state.pet.position.y + (moveX ? 0 : dy)))
+            }
+          }
+        }
+      }
+
+      // If far from player (more than 5 squares), move towards player
+      const distToPlayer = Math.hypot(
+        state.playerPosition.x - state.pet.position.x,
+        state.playerPosition.y - state.pet.position.y
+      )
+
+      if (distToPlayer > 5) {
+        const dx = Math.sign(state.playerPosition.x - state.pet.position.x)
+        const dy = Math.sign(state.playerPosition.y - state.pet.position.y)
+        
+        // Only move in one direction at a time
+        const moveX = Math.random() < 0.5
+        return {
+          pet: {
+            ...state.pet,
+            position: {
+              x: Math.max(0, Math.min(GRID_SIZE - 1, state.pet.position.x + (moveX ? dx : 0))),
+              y: Math.max(0, Math.min(GRID_SIZE - 1, state.pet.position.y + (moveX ? 0 : dy)))
+            }
+          }
+        }
+      }
+
+      // Random movement when near player and no thieves
+      if (Math.random() < 0.5) { // 50% chance to move
+        const directions = [
+          { x: 1, y: 0 },
+          { x: -1, y: 0 },
+          { x: 0, y: 1 },
+          { x: 0, y: -1 }
+        ]
+        const direction = directions[Math.floor(Math.random() * directions.length)]
+
+        const newX = Math.max(0, Math.min(GRID_SIZE - 1, state.pet.position.x + direction.x))
+        const newY = Math.max(0, Math.min(GRID_SIZE - 1, state.pet.position.y + direction.y))
+
+        // Only move if it won't take us too far from player
+        const newDistToPlayer = Math.hypot(
+          state.playerPosition.x - newX,
+          state.playerPosition.y - newY
+        )
+
+        if (newDistToPlayer <= 5) {
+          return {
+            pet: {
+              ...state.pet,
+              position: { x: newX, y: newY }
             }
           }
         }
@@ -455,10 +508,13 @@ let store = create<GameState>((set, get) => {
             y: thief.position.y + dy
           }
 
-          // If reached edge, remove thief
+          // If reached edge or would collide with dog, remove thief
           if (
             newPosition.x < 0 || newPosition.x >= GRID_SIZE ||
-            newPosition.y < 0 || newPosition.y >= GRID_SIZE
+            newPosition.y < 0 || newPosition.y >= GRID_SIZE ||
+            (state.pet && 
+              newPosition.x === state.pet.position.x && 
+              newPosition.y === state.pet.position.y)
           ) {
             return null
           }
@@ -471,7 +527,22 @@ let store = create<GameState>((set, get) => {
           }
         }
 
-        // If not stealing, find nearest crop
+        // If stealing, count down timer
+        if (thief.stealTimer !== null) {
+          if (thief.stealTimer > 0) {
+            return { ...thief, stealTimer: thief.stealTimer - 1 }
+          }
+
+          // Timer finished, steal crop and retreat
+          const cropKey = `${thief.position.x},${thief.position.y}`
+          if (state.crops[cropKey]?.stage === 'ready') {
+            const { [cropKey]: removedCrop, ...remainingCrops } = state.crops
+            state.crops = remainingCrops
+          }
+          return { ...thief, stealTimer: null }
+        }
+
+        // If not stealing and there are crops, find nearest crop
         if (thief.stealTimer === null && readyCrops.length > 0) {
           const nearestCrop = readyCrops.reduce((nearest, current) => {
             const dist = Math.hypot(
@@ -487,6 +558,13 @@ let store = create<GameState>((set, get) => {
             const newPosition = {
               x: thief.position.x + dx,
               y: thief.position.y + dy
+            }
+
+            // Don't move if it would collide with dog
+            if (state.pet && 
+                newPosition.x === state.pet.position.x && 
+                newPosition.y === state.pet.position.y) {
+              return thief
             }
 
             // If reached crop, start stealing
@@ -508,21 +586,7 @@ let store = create<GameState>((set, get) => {
           }
         }
 
-        // If stealing, count down timer
-        if (thief.stealTimer !== null) {
-          if (thief.stealTimer > 0) {
-            return { ...thief, stealTimer: thief.stealTimer - 1 }
-          }
-
-          // Steal crop and look for another
-          const cropKey = `${thief.position.x},${thief.position.y}`
-          if (state.crops[cropKey]?.stage === 'ready') {
-            const { [cropKey]: removedCrop, ...remainingCrops } = state.crops
-            state.crops = remainingCrops
-          }
-          return { ...thief, stealTimer: null }
-        }
-
+        // If no crops or can't move, stay in place
         return thief
       }).filter(Boolean) as Thief[]
 
