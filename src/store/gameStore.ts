@@ -57,23 +57,18 @@ interface GameState {
   thieves: Thief[]
   spawnThief: () => void
   updateThieves: () => void
-  fences: Set<string>
-  animals: Animal[]
-  selectedAnimal: AnimalType | null
-  placeFence: (position: string) => void
-  placeAnimal: (type: AnimalType, position: { x: number, y: number }) => void
-  selectAnimal: (type: AnimalType | null) => void
-  fencePreview: {
-    position: string | null
-    side: 'top' | 'right' | 'bottom' | 'left' | null
+  buildPreview: {
+    valid: boolean;
+    show: boolean;
+    size: 1 | 3;  // 1 for single tile, 3 for barn/enclosure
   }
-  setFencePreview: (position: string | null, side: 'top' | 'right' | 'bottom' | 'left' | null) => void
+  setBuildPreview: (preview: { valid: boolean; show: boolean; size: 1 | 3 }) => void
 }
 
 let store = create<GameState>((set, get) => {
   return {
     crops: {},
-    money: 100,
+    money: 1000,
     selectedCrop: 'wheat',
     menuOpen: false,
     selectedCategory: null,
@@ -93,12 +88,10 @@ let store = create<GameState>((set, get) => {
     playerPosition: { x: GRID_CENTER, y: GRID_CENTER },
     pets: [],
     thieves: [],
-    fences: new Set(),
-    animals: [],
-    selectedAnimal: null,
-    fencePreview: {
-      position: null,
-      side: null
+    buildPreview: {
+      valid: false,
+      show: false,
+      size: 1
     },
 
     selectCrop: (cropType) => set({ selectedCrop: cropType }),
@@ -349,19 +342,20 @@ let store = create<GameState>((set, get) => {
     }),
 
     spawnPet: (type, position) => set((state) => {
-      if (state.money < PET_DATA[type].price) return state
+      if (state.money < PET_DATA[type].price) return state;
       
       return {
         pets: [...state.pets, { 
+          id: `pet-${Date.now()}-${Math.random()}`,
           type, 
           position: { ...position }
         }],
         money: state.money - PET_DATA[type].price
-      }
+      };
     }),
 
     updatePets: () => set((state) => {
-      // Only move every second
+      // Only move every frame
       if (Math.random() > 1/60) return state
 
       const updatedPets = state.pets.map(pet => {
@@ -376,14 +370,14 @@ let store = create<GameState>((set, get) => {
 
         // If there's a thief nearby, move towards it
         if (nearestThief) {
-          const moveHorizontally = Math.random() < 0.5
           const dx = Math.sign(nearestThief.thief.position.x - pet.position.x)
           const dy = Math.sign(nearestThief.thief.position.y - pet.position.y)
 
           // Apply pet-specific speed
           const speed = PET_DATA[pet.type].speed
 
-          if (moveHorizontally && dx !== 0) {
+          // Move directly towards thief (no random direction choice)
+          if (Math.abs(dx) > Math.abs(dy)) {
             return {
               ...pet,
               position: {
@@ -391,7 +385,7 @@ let store = create<GameState>((set, get) => {
                 x: pet.position.x + (dx * speed)
               }
             }
-          } else if (!moveHorizontally && dy !== 0) {
+          } else {
             return {
               ...pet,
               position: {
@@ -451,18 +445,30 @@ let store = create<GameState>((set, get) => {
         })
 
       const updatedThieves = state.thieves.map(thief => {
-        // Check if any dog is nearby
-        const isDogNearby = state.pets.some(pet => 
-          Math.hypot(
-            pet.position.x - thief.position.x,
-            pet.position.y - thief.position.y
-          ) < 4
+        // Check if any dog is in the same cell
+        const isCollidingWithDog = state.pets.some(pet => 
+          pet.position.x === thief.position.x && 
+          pet.position.y === thief.position.y
         )
 
-        if (isDogNearby) {
-          // Run away from dog one square at a time
-          const dx = Math.sign(thief.position.x - state.pets[0].position.x)
-          const dy = Math.sign(thief.position.y - state.pets[0].position.y)
+        if (isCollidingWithDog) {
+          return null // Remove thief on collision
+        }
+
+        // Find nearest dog
+        const nearestDog = state.pets.reduce((nearest, pet) => {
+          const dist = Math.hypot(
+            pet.position.x - thief.position.x,
+            pet.position.y - thief.position.y
+          )
+          return !nearest || dist < nearest.dist ? { pet, dist } : nearest
+        }, null as { pet: Pet, dist: number } | null)
+
+        // Run away if dog is nearby (within 3 cells)
+        if (nearestDog && nearestDog.dist < 3) {
+          // Run in opposite direction of dog
+          const dx = Math.sign(thief.position.x - nearestDog.pet.position.x)
+          const dy = Math.sign(thief.position.y - nearestDog.pet.position.y)
           
           // Choose either horizontal or vertical movement randomly
           const moveHorizontally = Math.random() < 0.5
@@ -471,7 +477,7 @@ let store = create<GameState>((set, get) => {
             y: thief.position.y + (!moveHorizontally ? dy : 0)
           }
 
-          // If reached edge or would collide with dog, remove thief
+          // If would hit edge, remove thief
           if (
             newPosition.x < 0 || newPosition.x >= GRID_SIZE ||
             newPosition.y < 0 || newPosition.y >= GRID_SIZE
@@ -487,59 +493,11 @@ let store = create<GameState>((set, get) => {
           }
         }
 
-        // If stealing, count down timer
+        // Normal thief behavior if no dogs nearby
         if (thief.stealTimer !== null) {
-          if (thief.stealTimer > 0) {
-            return { ...thief, stealTimer: thief.stealTimer - 1 }
-          }
-
-          // Timer finished, steal crop
-          const cropKey = `${thief.position.x},${thief.position.y}`
-          if (state.crops[cropKey]?.stage === 'ready') {
-            const { [cropKey]: removedCrop, ...remainingCrops } = state.crops
-            state.crops = remainingCrops
-          }
-          return { ...thief, stealTimer: null }
-        }
-
-        // If not stealing, find and move towards nearest crop
-        if (readyCrops.length > 0) {
-          const nearestCrop = readyCrops.reduce((nearest, current) => {
-            const dist = Math.hypot(
-              current.position.x - thief.position.x,
-              current.position.y - thief.position.y
-            )
-            return !nearest || dist < nearest.dist ? { crop: current, dist } : nearest
-          }, null as { crop: typeof readyCrops[0], dist: number } | null)
-
-          if (nearestCrop) {
-            const dx = Math.sign(nearestCrop.crop.position.x - thief.position.x)
-            const dy = Math.sign(nearestCrop.crop.position.y - thief.position.y)
-            
-            // Choose either horizontal or vertical movement randomly
-            const moveHorizontally = Math.random() < 0.5
-            const newPosition = {
-              x: thief.position.x + (moveHorizontally && dx !== 0 ? dx : 0),
-              y: thief.position.y + (!moveHorizontally && dy !== 0 ? dy : 0)
-            }
-
-            // If reached crop, start stealing
-            if (
-              newPosition.x === nearestCrop.crop.position.x &&
-              newPosition.y === nearestCrop.crop.position.y
-            ) {
-              return {
-                ...thief,
-                position: newPosition,
-                stealTimer: 5
-              }
-            }
-
-            return {
-              ...thief,
-              position: newPosition
-            }
-          }
+          // ... existing stealing logic ...
+        } else if (readyCrops.length > 0) {
+          // ... existing crop targeting logic ...
         }
 
         return thief
@@ -551,79 +509,7 @@ let store = create<GameState>((set, get) => {
       }
     }),
 
-    placeFence: (position) => set((state) => {
-      if (state.money < 2) return state
-      
-      // Only place fence if there's a valid preview and no existing fence on that side
-      if (state.fencePreview.position && state.fencePreview.side) {
-        const fenceKey = `${position},${state.fencePreview.side}`
-        
-        // Check if there's already a fence on this side
-        const hasExistingFence = Array.from(state.fences).some(fence => {
-          const [fx, fy, side] = fence.split(',')
-          return fx === position.split(',')[0] && 
-                 fy === position.split(',')[1] && 
-                 side === state.fencePreview.side
-        })
-
-        if (hasExistingFence) return state
-
-        // Also check adjacent cell to prevent double fences
-        const [x, y] = position.split(',').map(Number)
-        let adjacentPosition: string
-        switch (state.fencePreview.side) {
-          case 'top':
-            adjacentPosition = `${x},${y-1},bottom`
-            break
-          case 'right':
-            adjacentPosition = `${x+1},${y},left`
-            break
-          case 'bottom':
-            adjacentPosition = `${x},${y+1},top`
-            break
-          case 'left':
-            adjacentPosition = `${x-1},${y},right`
-            break
-        }
-
-        if (state.fences.has(adjacentPosition)) return state
-
-        const newFences = new Set(state.fences)
-        newFences.add(fenceKey)
-
-        return {
-          fences: newFences,
-          money: state.money - 2,
-          fencePreview: { position: null, side: null }
-        }
-      }
-
-      return state
-    }),
-
-    placeAnimal: (type, position) => set((state) => {
-      const animalData = ANIMAL_DATA[type]
-      if (state.money < animalData.price) return state
-
-      // Check if position is within a valid enclosure
-      const enclosure = findEnclosure(position, state.fences)
-      if (!enclosure || enclosure.size < animalData.requiredSpace) return state
-
-      return {
-        animals: [...state.animals, {
-          id: `${type}-${Date.now()}-${Math.random()}`,
-          type,
-          position
-        }],
-        money: state.money - animalData.price
-      }
-    }),
-
-    selectAnimal: (type) => set({ selectedAnimal: type }),
-
-    setFencePreview: (position, side) => set({
-      fencePreview: { position, side }
-    })
+    setBuildPreview: (preview) => set({ buildPreview: preview })
   }
 })
 

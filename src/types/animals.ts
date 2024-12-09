@@ -4,6 +4,7 @@ export interface Animal {
   id: string
   type: AnimalType
   position: { x: number, y: number }
+  enclosureKey: string
 }
 
 export const ANIMAL_DATA = {

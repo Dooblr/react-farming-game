@@ -1,8 +1,9 @@
 export type PetType = 'dog' | 'fast_dog'
 
 export interface Pet {
-  type: PetType
-  position: { x: number, y: number }
+  id: string;
+  type: PetType;
+  position: { x: number; y: number };
 }
 
 export const PET_DATA = {

@@ -6,7 +6,6 @@ import { HUD } from "./components/HUD/HUD";
 import { NPC_DATA } from "./types/npcs";
 import { GRID_SIZE, GRID_CENTER } from "./constants";
 import { PET_DATA } from "./types/pets";
-import { AnimalType, ANIMAL_DATA } from './types/animals';
 
 interface Position {
   x: number;
@@ -47,13 +46,13 @@ function App() {
     spawnThief,
     updateThieves,
     thieves,
-    fencePreview,
-    setFencePreview,
-    fences,
-    placeFence,
     selectedAnimal,
     animals,
-    placeAnimal
+    placeAnimal,
+    buildPreview,
+    setBuildPreview,
+    updateAnimals,
+    selectAnimal
   } = useGameStore();
 
   // Add viewport offset state
@@ -105,15 +104,16 @@ function App() {
           setShowMerchantMenu(false);
           return;
         }
-        if (selectedCategory || selectedBuildItem || selectedCrop !== 'wheat') {
+        if (menuOpen) {
+          toggleMenu();
+          return;
+        }
+        if (selectedCategory || selectedBuildItem || selectedCrop !== 'wheat' || selectedAnimal) {
           // Clear all selections
           setSelectedCategory(null);
           selectBuildItem(null);
           selectCrop('wheat');
-          return;
-        }
-        if (menuOpen) {
-          toggleMenu();
+          selectAnimal(null);
           return;
         }
       }
@@ -138,6 +138,18 @@ function App() {
           } else if (selectedBuildItem === "dog" && money >= 50) {
             spawnPet('dog', playerPosition);
             useGameStore.setState((state) => ({ money: state.money - 50 }));
+          }
+        } else if (selectedCategory === "animals" && selectedAnimal) {
+          // Check if position is within an enclosure
+          const enclosure = Object.entries(enclosures).find(([_, enc]) => {
+            return playerPosition.x >= enc.topLeft.x && 
+                   playerPosition.x < enc.topLeft.x + enc.size.width &&
+                   playerPosition.y >= enc.topLeft.y && 
+                   playerPosition.y < enc.topLeft.y + enc.size.height;
+          });
+          
+          if (enclosure) {
+            placeAnimal(selectedAnimal, playerPosition);
           }
         } else if (soil.has(posKey)) {
           if (!crops[posKey]) {
@@ -188,7 +200,9 @@ function App() {
     selectBuildItem,
     selectCrop,
     menuOpen,
-    toggleMenu
+    toggleMenu,
+    selectedAnimal,
+    selectAnimal
   ]);
 
   // Calculate viewport position to center on player
@@ -254,46 +268,93 @@ function App() {
     } else if (selectedBuildItem === "planter" && money >= 50 && soil.has(posKey)) {
       spawnNPC('planter', { x, y });
       useGameStore.setState(state => ({ money: state.money - 50 }));
-    } else if (selectedBuildItem === "fence" && money >= 2) {
-      placeFence(posKey);
+    } else if (selectedAnimal) {
+      // Check if position is within any enclosure
+      const enclosure = Object.entries(enclosures).find(([_, enc]) => {
+        return x >= enc.topLeft.x && 
+               x < enc.topLeft.x + enc.size.width &&
+               y >= enc.topLeft.y && 
+               y < enc.topLeft.y + enc.size.height;
+      });
+      
+      if (enclosure) {
+        const animalData = ANIMAL_DATA[selectedAnimal];
+        if (money >= animalData.price) {
+          // Check if there's already an animal in this cell
+          const isOccupied = animals.some(animal => 
+            animal.position.x === x && animal.position.y === y
+          );
+          
+          if (!isOccupied) {
+            placeAnimal(selectedAnimal, { x, y });
+          }
+        }
+      }
     }
   };
 
   const handleGridHover = (x: number, y: number, e: React.MouseEvent) => {
     setMouseGridPos({ x, y });
     
-    if (selectedBuildItem === 'fence') {
-      const cellRect = (e.target as HTMLElement).getBoundingClientRect();
-      const mouseX = e.clientX - cellRect.left;
-      const mouseY = e.clientY - cellRect.top;
-      
-      // Determine primary axis first
-      const isVerticalPrimary = Math.abs(mouseX - cellRect.width/2) < Math.abs(mouseY - cellRect.height/2);
-      
-      let side: 'top' | 'right' | 'bottom' | 'left' | null = null;
-      
-      if (!isVerticalPrimary) {
-        // Horizontal axis selection (top/bottom)
-        side = mouseY < cellRect.height/2 ? 'top' : 'bottom';
-      } else {
-        // Vertical axis selection (left/right)
-        side = mouseX < cellRect.width/2 ? 'left' : 'right';
+    if (selectedBuildItem) {
+      const posKey = `${x},${y}`;
+      let isValid = true;
+      let size: 1 | 3 = 1;
+
+      switch (selectedBuildItem) {
+        case 'pen':
+          size = 3;
+          isValid = money >= 50;
+          // Check 3x3 area for pen placement
+          for (let dy = 0; dy < 3; dy++) {
+            for (let dx = 0; dx < 3; dx++) {
+              const checkKey = `${x + dx},${y + dy}`;
+              if (soil.has(checkKey) || buildings[checkKey] || 
+                  // Check if any part overlaps with existing enclosures
+                  Object.entries(enclosures).some(([_, enc]) => 
+                    x + dx >= enc.topLeft.x && 
+                    x + dx < enc.topLeft.x + enc.size.width &&
+                    y + dy >= enc.topLeft.y && 
+                    y + dy < enc.topLeft.y + enc.size.height
+                  )) {
+                isValid = false;
+              }
+            }
+          }
+          break;
+        case 'barn':
+        case 'dog':
+          isValid = money >= 50;
+          break;
+        case 'planter':
+          isValid = soil.has(posKey) && money >= 50;
+          break;
       }
-      
-      // Only update if the side has changed
-      if (fencePreview.position !== `${x},${y}` || fencePreview.side !== side) {
-        setFencePreview(`${x},${y}`, side);
-      }
+
+      setBuildPreview({
+        valid: isValid,
+        show: true,
+        size
+      });
     } else if (selectedAnimal) {
-      // Check if position is within a valid enclosure
-      const enclosure = findEnclosure({ x, y }, fences);
-      const animalData = ANIMAL_DATA[selectedAnimal];
-      const isValidPlacement = enclosure && enclosure.size >= animalData.requiredSpace;
-      
-      // Update preview class based on validity
-      setPreviewClass(isValidPlacement ? 'animal-preview valid' : 'animal-preview invalid');
-    } else {
-      setPreviewClass('');
+      // Check if position is within an enclosure
+      const enclosure = Object.entries(enclosures).find(([_, enc]) => {
+        return x >= enc.topLeft.x && 
+               x < enc.topLeft.x + enc.size.width &&
+               y >= enc.topLeft.y && 
+               y < enc.topLeft.y + enc.size.height;
+      });
+
+      // Check if there's already an animal in this cell
+      const isOccupied = animals.some(animal => 
+        animal.position.x === x && animal.position.y === y
+      );
+
+      setBuildPreview({
+        valid: enclosure !== undefined && !isOccupied && money >= ANIMAL_DATA[selectedAnimal].price,
+        show: true,
+        size: 1  // Animals are always 1x1
+      });
     }
   };
 
@@ -451,28 +512,18 @@ function App() {
                 let previewClass = "";
                 if (isDragging && dragStart && selectedBuildItem === "soil") {
                   const isInSelectedArea =
-                    x >=
-                      Math.min(dragStart.x, mouseGridPos?.x ?? dragStart.x) &&
-                    x <=
-                      Math.max(dragStart.x, mouseGridPos?.x ?? dragStart.x) &&
-                    y >=
-                      Math.min(dragStart.y, mouseGridPos?.y ?? dragStart.y) &&
+                    x >= Math.min(dragStart.x, mouseGridPos?.x ?? dragStart.x) &&
+                    x <= Math.max(dragStart.x, mouseGridPos?.x ?? dragStart.x) &&
+                    y >= Math.min(dragStart.y, mouseGridPos?.y ?? dragStart.y) &&
                     y <= Math.max(dragStart.y, mouseGridPos?.y ?? dragStart.y);
 
                   if (isInSelectedArea) {
-                    const currentWidth =
-                      Math.abs((mouseGridPos?.x ?? dragStart.x) - dragStart.x) +
-                      1;
-                    const currentHeight =
-                      Math.abs((mouseGridPos?.y ?? dragStart.y) - dragStart.y) +
-                      1;
-                    const maxAffordableArea = Math.floor(money / 5);
-                    const currentArea = currentWidth * currentHeight;
+                    const currentWidth = Math.abs((mouseGridPos?.x ?? dragStart.x) - dragStart.x) + 1;
+                    const currentHeight = Math.abs((mouseGridPos?.y ?? dragStart.y) - dragStart.y) + 1;
+                    const totalCost = currentWidth * currentHeight * 5;
+                    const isAffordable = money >= totalCost;
 
-                    previewClass =
-                      currentArea <= maxAffordableArea
-                        ? "building-preview"
-                        : "building-preview-unaffordable";
+                    previewClass = `soil-preview ${isAffordable ? '' : 'unaffordable'}`;
                   }
                 } else if (selectedBuildItem === "barn") {
                   const isInPreview =
@@ -516,13 +567,11 @@ function App() {
                 return (
                   <div
                     key={`${x}-${y}`}
-                    className={`grid-cell ${
-                      soil.has(posKey) ? "has-soil" : ""
-                    } ${previewClass}`}
+                    className={`grid-cell ${soil.has(posKey) ? "has-soil" : ""} ${previewClass}`}
                     onMouseEnter={(e) => handleGridHover(x, y, e)}
                     onMouseDown={() => handleGridClick(x, y)}
                   >
-                    {isBarnOrigin && <div className="building barn">🐄</div>}
+                    {isBarnOrigin && <div className="building barn">🏰</div>}
                     {crops[posKey] && (
                       <div className={`crop ${crops[posKey].stage}`}>
                         {getCropEmoji(crops[posKey])}
@@ -567,26 +616,19 @@ function App() {
                       ) : null
                     )}
                     
-                    {/* Add fence rendering */}
-                    {Array.from(fences).map(fence => {
-                      const [fx, fy, side] = fence.split(',');
-                      if (fx === x.toString() && fy === y.toString()) {
-                        return <div key={fence} className={`fence ${side}`} />;
-                      }
-                      return null;
-                    })}
-                    
-                    {/* Add animal preview */}
-                    {selectedAnimal && mouseGridPos?.x === x && mouseGridPos?.y === y && (
-                      <div 
-                        className={previewClass}
-                        data-emoji={ANIMAL_DATA[selectedAnimal].emoji}
-                      />
-                    )}
-                    
-                    {/* Add fence preview */}
-                    {fencePreview.position === posKey && fencePreview.side && (
-                      <div className={`fence ${fencePreview.side} preview`} />
+                    {/* Show build preview */}
+                    {mouseGridPos?.x === x && mouseGridPos?.y === y && (
+                      <>
+                        {buildPreview.show && (
+                          <div 
+                            className={`build-preview ${buildPreview.valid ? 'valid' : 'invalid'}`}
+                          >
+                            {selectedAnimal && buildPreview.valid && (
+                              <div className="animal-emoji">{ANIMAL_DATA[selectedAnimal].emoji}</div>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );

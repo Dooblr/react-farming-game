@@ -27,23 +27,11 @@ const BUILDABLE_ITEMS = {
     price: 50,
     description: 'Protects your crops from thieves'
   },
-  fast_dog: {
-    name: 'Fast Dog',
-    emoji: '🐕‍🦺',
-    price: 100,
-    description: 'Protects crops, moves twice as fast'
-  },
   planter: {
     name: 'Auto Planter',
     emoji: '🚜',
     price: 50,
     description: 'Automatically plants crops in empty soil'
-  },
-  fence: {
-    name: 'Fence',
-    emoji: '🚧',
-    price: 2,
-    description: 'Build enclosures for animals'
   }
 }
 
@@ -148,12 +136,6 @@ export function HUD({ playerPosition }: HUDProps) {
               >
                 🏗️ Build
               </button>
-              <button 
-                className={`category-button ${selectedCategory === 'animals' ? 'selected' : ''}`}
-                onClick={() => setSelectedCategory('animals')}
-              >
-                🐄 Animals
-              </button>
             </motion.div>
 
             <motion.div 
@@ -198,26 +180,6 @@ export function HUD({ playerPosition }: HUDProps) {
                         <div className="item-name">{item.name}</div>
                         <div className="item-details">
                           ${item.price} - {item.description}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {selectedCategory === 'animals' && (
-                <div className="animal-list">
-                  {Object.entries(ANIMAL_DATA).map(([type, data]) => (
-                    <button
-                      key={type}
-                      className={`item-button ${selectedAnimal === type ? 'selected' : ''}`}
-                      onClick={() => selectAnimal(type as AnimalType)}
-                    >
-                      <div className="item-emoji">{data.emoji}</div>
-                      <div className="item-info">
-                        <div className="item-name">{type.charAt(0).toUpperCase() + type.slice(1)}</div>
-                        <div className="item-details">
-                          ${data.price} - {data.description}
                         </div>
                       </div>
                     </button>
