@@ -18,6 +18,12 @@ const BUILDABLE_ITEMS = {
     emoji: '🏚️',
     price: 100,
     description: 'Store your harvested crops'
+  },
+  dog: {
+    name: 'Watch Dog',
+    emoji: '🐕',
+    price: 50,
+    description: 'Protects your crops from thieves'
   }
 }
 
@@ -32,7 +38,8 @@ export function HUD({ playerPosition }: HUDProps) {
     setSelectedCategory,
     setBuildingPreview,
     selectedBuildItem,
-    selectBuildItem
+    selectBuildItem,
+    inventory,
   } = useGameStore()
 
   return (
@@ -40,6 +47,11 @@ export function HUD({ playerPosition }: HUDProps) {
       <button 
         className="menu-button"
         onClick={toggleMenu}
+        onKeyDown={(e) => {
+          if (e.key === ' ') {
+            e.preventDefault()
+          }
+        }}
       >
         {menuOpen ? '✕' : '☰'}
       </button>
@@ -48,6 +60,21 @@ export function HUD({ playerPosition }: HUDProps) {
         <div className="menu-tray">
           <div className="menu-header">
             <div className="money-display">💰 ${money}</div>
+          </div>
+
+          <div className="inventory-section">
+            <h3>Inventory</h3>
+            {Object.entries(inventory).map(([cropType, amount]) => {
+              const crop = CROPS[cropType as CropType]
+              if (amount === 0) return null
+              return (
+                <div key={cropType} className="inventory-item">
+                  <span className="inventory-emoji">{crop.readyEmoji}</span>
+                  <span className="inventory-name">{crop.name}</span>
+                  <span className="inventory-amount">x{amount}</span>
+                </div>
+              )
+            })}
           </div>
 
           <div className="category-buttons">

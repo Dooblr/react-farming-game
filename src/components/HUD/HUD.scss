@@ -168,6 +168,10 @@
   overflow-y: auto;
 }
 
+.build-list, .crop-list {
+  margin-top: .25rem;
+}
+
 .item-button {
   width: 95%;
   background: rgba(255, 255, 255, 0.1);
@@ -211,5 +215,41 @@
 
 .item-details {
   font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.inventory-section {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 10px;
+  border-radius: 8px;
+
+  h3 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+    opacity: 0.8;
+  }
+}
+
+.inventory-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px;
+  border-radius: 4px;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.inventory-emoji {
+  font-size: 1.2rem;
+}
+
+.inventory-name {
+  flex: 1;
+}
+
+.inventory-amount {
   opacity: 0.8;
 } 

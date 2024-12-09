@@ -86,6 +86,7 @@ html, body {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  user-select: none;
 }
 
 .player {
@@ -178,7 +179,18 @@ html, body {
 }
 
 .barn {
-  font-size: 2rem;
+  font-size: 4rem;
+  position: absolute;
+  width: 120px;  // 3 cells width
+  height: 120px; // 3 cells height
+  left: 0;
+  top: 0;
+  transform: translate(0, 0);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  z-index: 3;
 }
 
 .building-preview {
@@ -187,5 +199,136 @@ html, body {
 
   &.invalid {
     background-color: rgba(255, 0, 0, 0.3) !important;
+  }
+
+  &:first-child {
+    position: relative;
+    
+    &::after {
+      content: '🏚️';
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      left: 0;
+      top: 0;
+      font-size: 4rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: 3;
+    }
+  }
+}
+
+.merchant {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  z-index: 2;
+}
+
+.merchant-menu {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 20px;
+  border-radius: 10px;
+  z-index: 100;
+  min-width: 300px;
+}
+
+.merchant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+
+  h2 {
+    margin: 0;
+  }
+
+  .close-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 5px;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+}
+
+.merchant-inventory {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.merchant-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+}
+
+.merchant-emoji {
+  font-size: 1.2rem;
+}
+
+.merchant-name {
+  flex: 1;
+}
+
+.merchant-price {
+  color: #90EE90;
+}
+
+.sell-button {
+  width: 100%;
+  padding: 10px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1.1rem;
+
+  &:hover {
+    background: #45a049;
+  }
+}
+
+.npc {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  z-index: 2;
+  transition: all 0.2s ease-out;
+
+  &.thief {
+    filter: brightness(0.8);
+  }
+
+  &.dog {
+    filter: brightness(1.2);
   }
 }
