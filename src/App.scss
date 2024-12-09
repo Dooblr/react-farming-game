@@ -222,6 +222,33 @@ html, body {
   }
 }
 
+.building-preview-unaffordable {
+  background-color: rgba(255, 0, 0, 0.3) !important;
+  cursor: not-allowed;
+}
+
+.building-preview, .building-preview-unaffordable {
+  &:first-child {
+    position: relative;
+    
+    &::after {
+      content: '🏚️';
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      left: 0;
+      top: 0;
+      font-size: 4rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0.5;
+      pointer-events: none;
+      z-index: 3;
+    }
+  }
+}
+
 .merchant {
   position: absolute;
   width: 100%;
@@ -331,4 +358,29 @@ html, body {
   &.dog {
     filter: brightness(1.2);
   }
+}
+
+.pet {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  z-index: 2;
+  transition: all 0.2s ease-out;
+  filter: brightness(1.2);
+}
+
+.thief {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  z-index: 2;
+  filter: brightness(0.8);
 }

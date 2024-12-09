@@ -6,18 +6,21 @@ export interface NPC {
   position: { x: number, y: number }
   targetPosition: { x: number, y: number } | null
   stealTimer?: number
+  patrolPoint?: { x: number, y: number }
 }
 
 export const NPC_DATA = {
   thief: {
     emoji: '🦹',
-    speed: 1,
-    spawnRate: 0.005,
-    stealDelay: 10,
+    speed: 0.2,
+    stealDelay: 5,
+    stealRange: 1,
   },
   dog: {
     emoji: '🐕',
-    speed: 1.5,
-    range: 5,
+    speed: 0.3,
+    range: 7,
+    patrolRadius: 5,
+    patrolSpeed: 0.25
   }
 } 

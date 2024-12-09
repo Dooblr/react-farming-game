@@ -1,6 +1,7 @@
 import { CropType, CROPS } from '../../types/crops'
 import { useGameStore } from '../../store/gameStore'
 import './HUD.scss'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface HUDProps {
   playerPosition: { x: number; y: number }
@@ -44,7 +45,7 @@ export function HUD({ playerPosition }: HUDProps) {
 
   return (
     <>
-      <button 
+      <motion.button 
         className="menu-button"
         onClick={toggleMenu}
         onKeyDown={(e) => {
@@ -52,92 +53,134 @@ export function HUD({ playerPosition }: HUDProps) {
             e.preventDefault()
           }
         }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.95 }}
       >
         {menuOpen ? '✕' : '☰'}
-      </button>
+      </motion.button>
 
-      {menuOpen && (
-        <div className="menu-tray">
-          <div className="menu-header">
-            <div className="money-display">💰 ${money}</div>
-          </div>
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div 
+            className="menu-tray"
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ 
+              type: "spring",
+              stiffness: 300,
+              damping: 30
+            }}
+          >
+            <div className="menu-header">
+              <motion.div 
+                className="money-display"
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                💰 ${money}
+              </motion.div>
+            </div>
 
-          <div className="inventory-section">
-            <h3>Inventory</h3>
-            {Object.entries(inventory).map(([cropType, amount]) => {
-              const crop = CROPS[cropType as CropType]
-              if (amount === 0) return null
-              return (
-                <div key={cropType} className="inventory-item">
-                  <span className="inventory-emoji">{crop.readyEmoji}</span>
-                  <span className="inventory-name">{crop.name}</span>
-                  <span className="inventory-amount">x{amount}</span>
+            <motion.div 
+              className="inventory-section"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <h3>Inventory</h3>
+              {Object.entries(inventory).map(([cropType, amount], index) => {
+                const crop = CROPS[cropType as CropType]
+                if (amount === 0) return null
+                return (
+                  <motion.div 
+                    key={cropType} 
+                    className="inventory-item"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 + index * 0.1 }}
+                  >
+                    <span className="inventory-emoji">{crop.readyEmoji}</span>
+                    <span className="inventory-name">{crop.name}</span>
+                    <span className="inventory-amount">x{amount}</span>
+                  </motion.div>
+                )
+              })}
+            </motion.div>
+
+            <motion.div 
+              className="category-buttons"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <button 
+                className={`category-button ${selectedCategory === 'plant' ? 'selected' : ''}`}
+                onClick={() => setSelectedCategory('plant')}
+              >
+                🌱 Plant
+              </button>
+              <button 
+                className={`category-button ${selectedCategory === 'build' ? 'selected' : ''}`}
+                onClick={() => setSelectedCategory('build')}
+              >
+                🏗️ Build
+              </button>
+            </motion.div>
+
+            <motion.div 
+              className="menu-content"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              {selectedCategory === 'plant' && (
+                <div className="crop-list">
+                  {(Object.keys(CROPS) as CropType[]).map((cropType) => {
+                    const cropData = CROPS[cropType]
+                    return (
+                      <button
+                        key={cropType}
+                        className={`item-button ${selectedCrop === cropType ? 'selected' : ''}`}
+                        onClick={() => selectCrop(cropType)}
+                      >
+                        <div className="item-emoji">{cropData.readyEmoji}</div>
+                        <div className="item-info">
+                          <div className="item-name">{cropData.name}</div>
+                          <div className="item-details">
+                            Sells for ${cropData.sellPrice}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
-              )
-            })}
-          </div>
+              )}
 
-          <div className="category-buttons">
-            <button 
-              className={`category-button ${selectedCategory === 'plant' ? 'selected' : ''}`}
-              onClick={() => setSelectedCategory('plant')}
-            >
-              🌱 Plant
-            </button>
-            <button 
-              className={`category-button ${selectedCategory === 'build' ? 'selected' : ''}`}
-              onClick={() => setSelectedCategory('build')}
-            >
-              🏗️ Build
-            </button>
-          </div>
-
-          <div className="menu-content">
-            {selectedCategory === 'plant' && (
-              <div className="crop-list">
-                {(Object.keys(CROPS) as CropType[]).map((cropType) => {
-                  const cropData = CROPS[cropType]
-                  return (
+              {selectedCategory === 'build' && (
+                <div className="build-list">
+                  {Object.entries(BUILDABLE_ITEMS).map(([id, item]) => (
                     <button
-                      key={cropType}
-                      className={`item-button ${selectedCrop === cropType ? 'selected' : ''}`}
-                      onClick={() => selectCrop(cropType)}
+                      key={id}
+                      className={`item-button ${selectedBuildItem === id ? 'selected' : ''}`}
+                      onClick={() => selectBuildItem(id as 'soil' | 'barn')}
                     >
-                      <div className="item-emoji">{cropData.readyEmoji}</div>
+                      <div className="item-emoji">{item.emoji}</div>
                       <div className="item-info">
-                        <div className="item-name">{cropData.name}</div>
+                        <div className="item-name">{item.name}</div>
                         <div className="item-details">
-                          Sells for ${cropData.sellPrice}
+                          ${item.price} - {item.description}
                         </div>
                       </div>
                     </button>
-                  )
-                })}
-              </div>
-            )}
-
-            {selectedCategory === 'build' && (
-              <div className="build-list">
-                {Object.entries(BUILDABLE_ITEMS).map(([id, item]) => (
-                  <button
-                    key={id}
-                    className={`item-button ${selectedBuildItem === id ? 'selected' : ''}`}
-                    onClick={() => selectBuildItem(id as 'soil' | 'barn')}
-                  >
-                    <div className="item-emoji">{item.emoji}</div>
-                    <div className="item-info">
-                      <div className="item-name">{item.name}</div>
-                      <div className="item-details">
-                        ${item.price} - {item.description}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   )
 } 
