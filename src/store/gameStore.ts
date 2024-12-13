@@ -28,10 +28,10 @@ interface GameState {
   harvestCrop: (position: string) => void
   selectCrop: (cropType: CropType) => void
   menuOpen: boolean
-  selectedCategory: 'plant' | 'build' | null
+  selectedCategory: 'plant' | 'build' | 'animals' | null
   soil: Set<string>
   toggleMenu: () => void
-  setSelectedCategory: (category: 'plant' | 'build' | null) => void
+  setSelectedCategory: (category: 'plant' | 'build' | 'animals' | null) => void
   placeSoil: (position: string) => void
   buildings: Record<string, 'barn'>
   buildingPreview: {
@@ -40,8 +40,8 @@ interface GameState {
   }
   setBuildingPreview: (type: 'barn' | null, position: { x: number, y: number } | null) => void
   placeBuilding: (type: 'barn', position: { x: number, y: number }) => void
-  selectedBuildItem: 'soil' | 'barn' | 'dog' | 'planter' | null
-  selectBuildItem: (item: 'soil' | 'barn' | 'dog' | 'planter' | null) => void
+  selectedBuildItem: 'soil' | 'barn' | 'dog' | 'planter' | 'pen' | null
+  selectBuildItem: (item: 'soil' | 'barn' | 'dog' | 'planter' | 'pen' | null) => void
   inventory: Record<CropType, number>
   addToInventory: (cropType: CropType) => void
   sellInventory: () => void
@@ -63,6 +63,12 @@ interface GameState {
     size: 1 | 3;  // 1 for single tile, 3 for barn/enclosure
   }
   setBuildPreview: (preview: { valid: boolean; show: boolean; size: 1 | 3 }) => void
+  animals: { id: string; type: 'chicken'; position: { x: number; y: number } }[];
+  selectedAnimal: 'chicken' | null;
+  selectAnimal: (type: 'chicken' | null) => void;
+  placeAnimal: (type: 'chicken', position: { x: number; y: number }) => void;
+  pens: Record<string, { topLeft: { x: number; y: number } }>;
+  placePen: (position: { x: number; y: number }) => void;
 }
 
 let store = create<GameState>((set, get) => {
@@ -93,6 +99,9 @@ let store = create<GameState>((set, get) => {
       show: false,
       size: 1
     },
+    animals: [],
+    selectedAnimal: null,
+    pens: {},
 
     selectCrop: (cropType) => set({ selectedCrop: cropType }),
 
@@ -509,7 +518,49 @@ let store = create<GameState>((set, get) => {
       }
     }),
 
-    setBuildPreview: (preview) => set({ buildPreview: preview })
+    setBuildPreview: (preview) => set({ buildPreview: preview }),
+
+    placePen: (position) => set((state) => {
+      if (state.money < 50) return state;
+
+      // Check if area is clear
+      for (let y = position.y; y < position.y + 3; y++) {
+        for (let x = position.x; x < position.x + 3; x++) {
+          const posKey = `${x},${y}`;
+          if (state.soil.has(posKey) || state.buildings[posKey]) return state;
+        }
+      }
+
+      return {
+        pens: {
+          ...state.pens,
+          [`${position.x},${position.y}`]: { topLeft: position }
+        },
+        money: state.money - 50
+      };
+    }),
+
+    placeAnimal: (type, position) => set((state) => {
+      // Check if position is within a pen
+      const isInPen = Object.entries(state.pens).some(([key, pen]) => {
+        const [px, py] = key.split(',').map(Number);
+        return position.x >= px && position.x < px + 3 &&
+               position.y >= py && position.y < py + 3;
+      });
+
+      if (!isInPen) return state;
+
+      return {
+        animals: [...state.animals, {
+          id: `${type}-${Date.now()}`,
+          type,
+          position
+        }],
+        money: state.money - 10
+      };
+    }),
+
+    selectAnimal: (type) => set({ selectedAnimal: type })
   }
 })
 

@@ -32,6 +32,21 @@ const BUILDABLE_ITEMS = {
     emoji: '🚜',
     price: 50,
     description: 'Automatically plants crops in empty soil'
+  },
+  pen: {
+    name: 'Animal Pen',
+    emoji: '🏕️',
+    price: 50,
+    description: '3x3 pen for animals'
+  }
+}
+
+const ANIMALS = {
+  chicken: {
+    name: 'Chicken',
+    emoji: '🐔',
+    price: 10,
+    description: 'Lays eggs periodically'
   }
 }
 
@@ -136,6 +151,12 @@ export function HUD({ playerPosition }: HUDProps) {
               >
                 🏗️ Build
               </button>
+              <button 
+                className={`category-button ${selectedCategory === 'animals' ? 'selected' : ''}`}
+                onClick={() => setSelectedCategory('animals')}
+              >
+                🐄 Animals
+              </button>
             </motion.div>
 
             <motion.div 
@@ -180,6 +201,26 @@ export function HUD({ playerPosition }: HUDProps) {
                         <div className="item-name">{item.name}</div>
                         <div className="item-details">
                           ${item.price} - {item.description}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {selectedCategory === 'animals' && (
+                <div className="animal-list">
+                  {Object.entries(ANIMALS).map(([type, data]) => (
+                    <button
+                      key={type}
+                      className={`item-button ${selectedAnimal === type ? 'selected' : ''}`}
+                      onClick={() => selectAnimal(type as 'chicken')}
+                    >
+                      <div className="item-emoji">{data.emoji}</div>
+                      <div className="item-info">
+                        <div className="item-name">{data.name}</div>
+                        <div className="item-details">
+                          ${data.price} - {data.description}
                         </div>
                       </div>
                     </button>

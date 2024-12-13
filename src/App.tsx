@@ -6,6 +6,16 @@ import { HUD } from "./components/HUD/HUD";
 import { NPC_DATA } from "./types/npcs";
 import { GRID_SIZE, GRID_CENTER } from "./constants";
 import { PET_DATA } from "./types/pets";
+import { ANIMAL_DATA } from "./types/animals";
+
+const ANIMALS = {
+  chicken: {
+    name: 'Chicken',
+    emoji: '🐔',
+    price: 10,
+    description: 'Lays eggs periodically'
+  }
+};
 
 interface Position {
   x: number;
@@ -52,7 +62,9 @@ function App() {
     buildPreview,
     setBuildPreview,
     updateAnimals,
-    selectAnimal
+    selectAnimal,
+    pens,
+    placePen
   } = useGameStore();
 
   // Add viewport offset state
@@ -268,6 +280,8 @@ function App() {
     } else if (selectedBuildItem === "planter" && money >= 50 && soil.has(posKey)) {
       spawnNPC('planter', { x, y });
       useGameStore.setState(state => ({ money: state.money - 50 }));
+    } else if (selectedBuildItem === "pen" && money >= 50) {
+      placePen({ x, y });
     } else if (selectedAnimal) {
       // Check if position is within any enclosure
       const enclosure = Object.entries(enclosures).find(([_, enc]) => {
@@ -296,7 +310,25 @@ function App() {
   const handleGridHover = (x: number, y: number, e: React.MouseEvent) => {
     setMouseGridPos({ x, y });
     
-    if (selectedBuildItem) {
+    // Clear any existing preview
+    setPreviewClass('');
+    
+    if (isDragging && dragStart && selectedBuildItem === "soil") {
+      const isInSelectedArea =
+        x >= Math.min(dragStart.x, mouseGridPos?.x ?? dragStart.x) &&
+        x <= Math.max(dragStart.x, mouseGridPos?.x ?? dragStart.x) &&
+        y >= Math.min(dragStart.y, mouseGridPos?.y ?? dragStart.y) &&
+        y <= Math.max(dragStart.y, mouseGridPos?.y ?? dragStart.y);
+
+      if (isInSelectedArea) {
+        const currentWidth = Math.abs((mouseGridPos?.x ?? dragStart.x) - dragStart.x) + 1;
+        const currentHeight = Math.abs((mouseGridPos?.y ?? dragStart.y) - dragStart.y) + 1;
+        const totalCost = currentWidth * currentHeight * 5;
+        const isAffordable = money >= totalCost;
+
+        setPreviewClass(`soil-preview ${isAffordable ? '' : 'unaffordable'}`);
+      }
+    } else if (selectedBuildItem) {
       const posKey = `${x},${y}`;
       let isValid = true;
       let size: 1 | 3 = 1;
@@ -310,12 +342,11 @@ function App() {
             for (let dx = 0; dx < 3; dx++) {
               const checkKey = `${x + dx},${y + dy}`;
               if (soil.has(checkKey) || buildings[checkKey] || 
-                  // Check if any part overlaps with existing enclosures
-                  Object.entries(enclosures).some(([_, enc]) => 
-                    x + dx >= enc.topLeft.x && 
-                    x + dx < enc.topLeft.x + enc.size.width &&
-                    y + dy >= enc.topLeft.y && 
-                    y + dy < enc.topLeft.y + enc.size.height
+                  Object.entries(pens).some(([_, pen]) => 
+                    x + dx >= pen.topLeft.x && 
+                    x + dx < pen.topLeft.x + 3 &&
+                    y + dy >= pen.topLeft.y && 
+                    y + dy < pen.topLeft.y + 3
                   )) {
                 isValid = false;
               }
@@ -337,23 +368,17 @@ function App() {
         size
       });
     } else if (selectedAnimal) {
-      // Check if position is within an enclosure
-      const enclosure = Object.entries(enclosures).find(([_, enc]) => {
-        return x >= enc.topLeft.x && 
-               x < enc.topLeft.x + enc.size.width &&
-               y >= enc.topLeft.y && 
-               y < enc.topLeft.y + enc.size.height;
+      // Check if position is within a pen
+      const isInPen = Object.entries(pens).some(([key, pen]) => {
+        const [px, py] = key.split(',').map(Number);
+        return x >= px && x < px + 3 &&
+               y >= py && y < py + 3;
       });
 
-      // Check if there's already an animal in this cell
-      const isOccupied = animals.some(animal => 
-        animal.position.x === x && animal.position.y === y
-      );
-
       setBuildPreview({
-        valid: enclosure !== undefined && !isOccupied && money >= ANIMAL_DATA[selectedAnimal].price,
+        valid: isInPen && money >= 10,  // Chicken costs 10
         show: true,
-        size: 1  // Animals are always 1x1
+        size: 1
       });
     }
   };
@@ -567,10 +592,32 @@ function App() {
                 return (
                   <div
                     key={`${x}-${y}`}
-                    className={`grid-cell ${soil.has(posKey) ? "has-soil" : ""} ${previewClass}`}
+                    className={`grid-cell ${soil.has(posKey) ? "has-soil" : ""}`}
                     onMouseEnter={(e) => handleGridHover(x, y, e)}
                     onMouseDown={() => handleGridClick(x, y)}
                   >
+                    {/* Show soil preview when dragging */}
+                    {isDragging && dragStart && selectedBuildItem === "soil" && (() => {
+                      const isInSelectedArea =
+                        x >= Math.min(dragStart.x, mouseGridPos?.x ?? dragStart.x) &&
+                        x <= Math.max(dragStart.x, mouseGridPos?.x ?? dragStart.x) &&
+                        y >= Math.min(dragStart.y, mouseGridPos?.y ?? dragStart.y) &&
+                        y <= Math.max(dragStart.y, mouseGridPos?.y ?? dragStart.y);
+
+                      if (isInSelectedArea) {
+                        const currentWidth = Math.abs((mouseGridPos?.x ?? dragStart.x) - dragStart.x) + 1;
+                        const currentHeight = Math.abs((mouseGridPos?.y ?? dragStart.y) - dragStart.y) + 1;
+                        const totalCost = currentWidth * currentHeight * 5;
+                        const isAffordable = money >= totalCost;
+
+                        return (
+                          <div className={`soil-preview ${isAffordable ? '' : 'unaffordable'}`} />
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Rest of cell content */}
                     {isBarnOrigin && <div className="building barn">🏰</div>}
                     {crops[posKey] && (
                       <div className={`crop ${crops[posKey].stage}`}>
@@ -621,7 +668,9 @@ function App() {
                       <>
                         {buildPreview.show && (
                           <div 
-                            className={`build-preview ${buildPreview.valid ? 'valid' : 'invalid'}`}
+                            className={`build-preview ${buildPreview.valid ? 'valid' : 'invalid'} ${
+                              buildPreview.size === 3 ? 'large pen-preview' : ''
+                            }`}
                           >
                             {selectedAnimal && buildPreview.valid && (
                               <div className="animal-emoji">{ANIMAL_DATA[selectedAnimal].emoji}</div>
@@ -629,6 +678,40 @@ function App() {
                           </div>
                         )}
                       </>
+                    )}
+                    {/* Render pens */}
+                    {Object.entries(pens).map(([key, pen]) => {
+                      const [px, py] = key.split(',').map(Number);
+                      const isInPen = 
+                        x >= px && x < px + 3 &&
+                        y >= py && y < py + 3;
+                      
+                      if (isInPen) {
+                        return (
+                          <div 
+                            key={`pen-${key}`}
+                            className={`pen ${
+                              x === px ? 'left-wall' : ''
+                            } ${
+                              x === px + 2 ? 'right-wall' : ''
+                            } ${
+                              y === py ? 'top-wall' : ''
+                            } ${
+                              y === py + 2 ? 'bottom-wall' : ''
+                            }`}
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+
+                    {/* Render animals */}
+                    {animals.map(animal => 
+                      animal.position.x === x && animal.position.y === y && (
+                        <div key={animal.id} className="animal">
+                          {ANIMALS[animal.type].emoji}
+                        </div>
+                      )
                     )}
                   </div>
                 );
